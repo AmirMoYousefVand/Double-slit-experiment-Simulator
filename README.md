@@ -1,5 +1,8 @@
 # Thomas Young Double-Slit Experiment Simulator
 
+[![GitHub Repository](https://img.shields.io/badge/GitHub-AmirMoYousefVand%2FDouble--slit--experiment--Simulator-181717?logo=github&logoColor=white)](https://github.com/AmirMoYousefVand/Double-slit-experiment-Simulator)
+[![Latest Release](https://img.shields.io/github/v/release/AmirMoYousefVand/Double-slit-experiment-Simulator?label=release&logo=github)](https://github.com/AmirMoYousefVand/Double-slit-experiment-Simulator/releases)
+
 **Classical Wave Optics & Quantum Mechanics Dashboard**
 
 A bilingual (English / فارسی) desktop laboratory that simulates Young's double-slit
@@ -134,4 +137,6 @@ Historical portrait and laboratory images credits are listed in
 
 ## License
 
-See the repository for license information.
+© 2026 — Created by **Amir Mohammad Yousefvand**. All rights reserved.
+
+Source code and releases: [github.com/AmirMoYousefVand/Double-slit-experiment-Simulator](https://github.com/AmirMoYousefVand/Double-slit-experiment-Simulator)

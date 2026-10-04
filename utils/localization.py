@@ -28,6 +28,10 @@ class LocalizationService:
             "en": "Wave Optics & Quantum Wave-Particle Duality Lab",
             "fa": f"{RLM}آزمایشگاه اپتیک موجی و دوگانگی موج-ذره مکانیک کوانتومی{RLM}"
         },
+        "copyright": {
+            "en": "© 2026 — Created by Amir Mohammad Yousefvand",
+            "fa": f"{RLM}ساخته شده توسط Amir Mohammad Yousefvand © ۲۰۲۶{RLM}"
+        },
         "mode_classical": {
             "en": "Classical Wave Optics",
             "fa": f"{RLM}نورشناسی موجی کلاسیک{RLM}"

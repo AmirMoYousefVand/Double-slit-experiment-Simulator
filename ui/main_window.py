@@ -6,6 +6,7 @@ Full multi-format export pipeline: Context-Aware PNG/PDF, 22-column CSV, 3D OBJ 
 Fully styled with Vazirmatn and Space Grotesk typography.
 """
 
+import os
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -55,6 +56,26 @@ class MainWindow(ctk.CTk):
     Main application root window hosting classical and quantum double-slit simulations.
     """
 
+    def _set_window_icon(self):
+        """Applies the application logo to the title bar, taskbar and Alt-Tab list."""
+        logo_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "assets", "Logo"
+        )
+        ico_path = os.path.join(logo_dir, "favicon.ico")
+        if os.path.exists(ico_path):
+            try:
+                self.iconbitmap(ico_path)
+            except Exception as e:
+                print(f"Warning: window icon (.ico) load failed: {e}")
+
+        png_path = os.path.join(logo_dir, "icon.png")
+        if os.path.exists(png_path):
+            try:
+                self.iconphoto(True, tk.PhotoImage(file=png_path))
+            except Exception as e:
+                print(f"Warning: window icon (.png) load failed: {e}")
+
     def __init__(self):
         super().__init__()
 
@@ -68,6 +89,7 @@ class MainWindow(ctk.CTk):
         self.title(LocalizationService.get("app_title"))
         self.geometry(WINDOW_DEFAULT_GEOMETRY)
         self.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+        self._set_window_icon()
 
         # Simulation Mode: "classical" or "quantum"
         self.mode = "classical"
@@ -343,6 +365,20 @@ class MainWindow(ctk.CTk):
             on_export_zip=self._on_export_all_in_one_zip
         )
         self.metrics_panel.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+
+        # ======================================================================
+        # Footer Bar — Copyright Credit
+        # ======================================================================
+        self.footer_bar = ctk.CTkFrame(self, height=22, corner_radius=0, fg_color="#18181B")
+        self.footer_bar.grid(row=2, column=0, columnspan=2, sticky="ew")
+
+        self.copyright_label = ctk.CTkLabel(
+            self.footer_bar,
+            text=LocalizationService.get("copyright"),
+            font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10),
+            text_color="#6B7280"
+        )
+        self.copyright_label.pack(pady=3)
 
     # ==========================================================================
     # Optical & Physical Calculations Coordination
@@ -623,6 +659,10 @@ class MainWindow(ctk.CTk):
         )
         self.subtitle_label.configure(
             text=LocalizationService.get("app_subtitle"),
+            font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10)
+        )
+        self.copyright_label.configure(
+            text=LocalizationService.get("copyright"),
             font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10)
         )
 

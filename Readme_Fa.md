@@ -2,6 +2,9 @@
 
 # شبیه‌ساز آزمایش دو شکاف تامس یانگ
 
+[![GitHub Repository](https://img.shields.io/badge/GitHub-AmirMoYousefVand%2FDouble--slit--experiment--Simulator-181717?logo=github&logoColor=white)](https://github.com/AmirMoYousefVand/Double-slit-experiment-Simulator)
+[![Latest Release](https://img.shields.io/github/v/release/AmirMoYousefVand/Double-slit-experiment-Simulator?label=release&logo=github)](https://github.com/AmirMoYousefVand/Double-slit-experiment-Simulator/releases)
+
 **داشبورد اپتیک موجی کلاسیک و مکانیک کوانتومی**
 
 آزمایشگاه دوزبانه (فارسی / English) که آزمایش دو شکاف یانگ را از دو دیدگاه شبیه‌سازی می‌کند:
@@ -134,6 +137,8 @@ python test_simulator.py
 
 ## مجوز
 
-اطلاعات مجوز در مخزن موجود است.
+© ۲۰۲۶ — ساخته شده توسط **Amir Mohammad Yousefvand**. تمامی حقوق محفوظ است.
+
+کد منبع و نسخه‌ها: [github.com/AmirMoYousefVand/Double-slit-experiment-Simulator](https://github.com/AmirMoYousefVand/Double-slit-experiment-Simulator)
 
 </div>
