@@ -21,6 +21,10 @@ dist/
 *.egg-info/
 .eggs/
 
+# Release notes draft (pasted into GitHub Releases, not committed)
+RELEASE*.md
+RELEASE*.txt
+
 # Test / coverage
 .pytest_cache/
 .coverage
