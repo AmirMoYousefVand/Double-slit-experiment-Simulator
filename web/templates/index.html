@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thomas Young Simulator — Interactive Presentation & Guide</title>
+
+    <!-- KaTeX for Lightning-Fast, High-Precision LaTeX Math Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <!-- Presentation Stylesheet -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Top Header & Navigation Bar -->
+    <header class="app-header">
+        <div class="brand">
+            <span class="brand-icon">🔬</span>
+            <div>
+                <div class="brand-title" id="brand-title">شبیه‌ساز جامع آزمایش دو شکاف یانگ</div>
+                <div class="brand-subtitle" id="brand-subtitle">ارائه آموزشی تعاملی و راهنمای کامل نرم‌افزار</div>
+            </div>
+        </div>
+
+        <nav class="tab-nav">
+            <button class="tab-btn active" id="btn-mode-history" onclick="switchSection('history')">
+                <span class="icon">📜</span> <span id="label-history-tab">تاریخچه و آموزش</span>
+            </button>
+            <button class="tab-btn" id="btn-mode-guide" onclick="switchSection('guide')">
+                <span class="icon">🧭</span> <span id="label-guide-tab">راهنمای نرم‌افزار</span>
+            </button>
+            <button class="tab-btn" id="btn-mode-lab" onclick="switchSection('lab')">
+                <span class="icon">⚡</span> <span id="label-lab-tab">آزمایشگاه زنده</span>
+            </button>
+        </nav>
+
+        <div class="nav-controls">
+            <button class="btn-action" onclick="toggleLanguage()" id="btn-lang-toggle">
+                <span>🌐</span> <span id="lang-label">English (EN)</span>
+            </button>
+            <button class="btn-action" onclick="toggleFullscreen()" id="btn-fullscreen-toggle">
+                <span>⛶</span> <span id="fs-label">تمام‌صفحه</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Presentation Content Stage -->
+    <main class="presentation-container">
+        <!-- Progress and Chapter Banner -->
+        <div class="progress-banner">
+            <div class="section-pill" id="current-chapter-badge">۱. خط زمانی نور</div>
+            <div class="slide-counter" id="current-slide-counter">اسلاید ۱ از ۲۱</div>
+        </div>
+        <div class="progress-track">
+            <div class="progress-bar-fill" id="slide-progress-fill" style="width: 5%;"></div>
+        </div>
+
+        <!-- Slide Body Container -->
+        <article class="slide-card" id="slide-card-container">
+            <h1 class="slide-title" id="slide-title-text">عنوان اسلاید</h1>
+
+            <!-- Paragraphs and Formulas Holder -->
+            <div class="slide-body-paragraphs" id="slide-paragraphs-box">
+                <!-- Dynamically populated -->
+            </div>
+
+            <!-- Figure & Diagram Section -->
+            <div class="diagram-container" id="diagram-container-box">
+                <div class="diagram-header" id="diagram-header-bar">
+                    <span id="diagram-badge-text">نگاره تعاملی</span>
+                    <span id="diagram-subbadge-text"></span>
+                </div>
+                <div id="diagram-media-wrapper">
+                    <!-- Photo Image or HTML5 Canvas or SVG inserted here -->
+                </div>
+                <div class="diagram-caption" id="diagram-caption-text"></div>
+            </div>
+
+            <!-- Interactive Quiz Section (Visible on Quiz Slides) -->
+            <div class="quiz-box" id="quiz-container-box" style="display: none;">
+                <div class="quiz-question-text" id="quiz-q-text">سوال آزمون کلاسی</div>
+                <div class="quiz-options-list" id="quiz-options-wrapper">
+                    <!-- Choice buttons populated here -->
+                </div>
+                <div class="feedback-card" id="quiz-feedback-card" style="display: none;">
+                    <div id="quiz-feedback-title" style="font-weight: 700;"></div>
+                    <div id="quiz-feedback-explanation"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                    <span id="quiz-score-badge" style="font-weight: 700; color: var(--accent-cyan);">امتیاز: ۰ از ۰</span>
+                    <button class="btn-action" onclick="resetQuiz()" id="quiz-restart-btn">شروع دوباره آزمون</button>
+                </div>
+            </div>
+        </article>
+
+        <!-- Interactive Lab Mode (Active when in 'lab' tab) -->
+        <article class="slide-card" id="live-lab-card" style="display: none;">
+            <h1 class="slide-title">
+                <span>⚡</span> <span id="lab-title-text">آزمایشگاه تحلیلی زنده (Live Analytical Optics Lab)</span>
+            </h1>
+            <p class="slide-paragraph" id="lab-desc-text">
+                پارامترهای آزمایش را تغییر دهید و فوراً تشکیل پرده تداخلی، پوش پراش فرانهوفر و فاصله نوارها را به صورت زنده و بلادرنگ مشاهده کنید:
+            </p>
+
+            <!-- Sliders Grid -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin: 1rem 0;">
+                <div class="guide-point-item" style="flex-direction: column; align-items: stretch; gap: 0.3rem;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span id="lab-lbl-wl">طول موج (λ):</span>
+                        <strong id="lab-val-wl" style="color: var(--accent-cyan);">632.8 nm</strong>
+                    </div>
+                    <input type="range" id="slider-wl" min="380" max="780" step="1" value="632.8" oninput="updateLabSimulation()">
+                </div>
+
+                <div class="guide-point-item" style="flex-direction: column; align-items: stretch; gap: 0.3rem;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span id="lab-lbl-d">فاصله دو شکاف (d):</span>
+                        <strong id="lab-val-d" style="color: var(--accent-amber);">0.25 mm</strong>
+                    </div>
+                    <input type="range" id="slider-d" min="0.05" max="2.00" step="0.01" value="0.25" oninput="updateLabSimulation()">
+                </div>
+
+                <div class="guide-point-item" style="flex-direction: column; align-items: stretch; gap: 0.3rem;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span id="lab-lbl-a">پهنای هر شکاف (a):</span>
+                        <strong id="lab-val-a" style="color: var(--accent-emerald);">0.04 mm</strong>
+                    </div>
+                    <input type="range" id="slider-a" min="0.005" max="0.30" step="0.005" value="0.04" oninput="updateLabSimulation()">
+                </div>
+
+                <div class="guide-point-item" style="flex-direction: column; align-items: stretch; gap: 0.3rem;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span id="lab-lbl-l">فاصله تا پرده (L):</span>
+                        <strong id="lab-val-l" style="color: #A78BFA;">1.00 m</strong>
+                    </div>
+                    <input type="range" id="slider-l" min="0.2" max="3.0" step="0.05" value="1.0" oninput="updateLabSimulation()">
+                </div>
+            </div>
+
+            <!-- Live Canvas Simulation Area -->
+            <div class="diagram-container">
+                <canvas id="lab-simulation-canvas" class="canvas-visual" height="340"></canvas>
+            </div>
+
+            <!-- Mathematical telemetry cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem;">
+                <div class="math-formula-card" id="lab-calc-dy" style="margin: 0;">Δy = 2.53 mm</div>
+                <div class="math-formula-card" id="lab-calc-theta" style="margin: 0;">θ_1 = 2.53 mrad</div>
+                <div class="math-formula-card" id="lab-calc-missing" style="margin: 0;">مراتب غایب: ±6, ±12</div>
+            </div>
+        </article>
+    </main>
+
+    <!-- Bottom Navigation Dock -->
+    <footer class="presentation-footer">
+        <button class="nav-btn" onclick="prevSlide()" id="btn-prev-slide">
+            <span>←</span> <span id="label-prev">قبلی</span>
+        </button>
+
+        <div class="dots-indicator" id="dots-indicator-container">
+            <!-- Dynamic dots rendered here -->
+        </div>
+
+        <button class="nav-btn" onclick="nextSlide()" id="btn-next-slide">
+            <span id="label-next">بعدی</span> <span>→</span>
+        </button>
+    </footer>
+
+    <!-- Initial Data Payload from Backend -->
+    <script id="initial-payload" type="application/json">
+        {{ initial_data | safe }}
+    </script>
+
+    <!-- Presentation Engine & Simulation Scripts -->
+    <script src="/static/js/animations.js"></script>
+    <script src="/static/js/quiz.js"></script>
+    <script src="/static/js/presentation.js"></script>
+</body>
+</html>
