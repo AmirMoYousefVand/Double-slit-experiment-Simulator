@@ -439,7 +439,16 @@ class Setup3DView(ctk.CTkFrame):
         X_mesh = np.full_like(Y_mesh, L)
 
         y_grid_mm = y_grid_m * 1000.0
-        i_interp = np.interp(y_scr, y_grid_mm, intensity_1d)
+        if len(y_grid_mm) and abs(y_grid_mm[-1]) >= y_span_mm:
+            # Physical mapping: intensity grid already covers the visible screen
+            i_interp = np.interp(y_scr, y_grid_mm, intensity_1d)
+        else:
+            # Matter-wave (or extreme) span much narrower than the apparatus
+            # view: stretch the computed profile across the visible screen
+            # instead of clamping every sample to the edge intensity.
+            frac = (y_scr + y_span_mm) / (2.0 * y_span_mm)
+            idx = frac * (len(intensity_1d) - 1)
+            i_interp = np.interp(idx, np.arange(len(intensity_1d)), intensity_1d)
         max_i = np.max(i_interp)
         if max_i > 0:
             i_interp /= max_i
@@ -470,7 +479,15 @@ class Setup3DView(ctk.CTkFrame):
         # In Quantum Mode: Render 3D phosphor impact points
         if is_quantum and quantum_hits_y is not None and len(quantum_hits_y) > 0:
             sample_n = min(len(quantum_hits_y), 400)
-            sub_y = np.array(quantum_hits_y[-sample_n:]) * 1000.0
+            half_grid_m = abs(y_grid_m[-1]) if len(y_grid_m) else 1.0
+            if half_grid_m * 1000.0 >= y_span_mm:
+                sub_y = np.array(quantum_hits_y[-sample_n:]) * 1000.0
+            else:
+                # Sub-mm screen: stretch hits across the visible apparatus screen
+                sub_y = np.clip(
+                    np.array(quantum_hits_y[-sample_n:]) / max(half_grid_m, 1e-30) * y_span_mm,
+                    -y_span_mm, y_span_mm
+                )
             sub_z = np.array(quantum_hits_z[-sample_n:]) * 1000.0
             sub_x = np.full(sample_n, L)
             self.ax.scatter(sub_x, sub_y, sub_z, color=laser_hex, s=4.0, alpha=0.8, zorder=5)

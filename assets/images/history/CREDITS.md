@@ -9,6 +9,12 @@ The app never downloads at runtime; missing files render an offline placeholder.
 | `fringes.jpg` | https://commons.wikimedia.org/wiki/File:2slits_quantum.jpg | Check Commons page for license before redistribution |
 | `hitachi_buildup.jpg` | https://commons.wikimedia.org/wiki/File:Double-slit_experiment_results_Tonomura_2.jpg | Tonomura et al. / Hitachi — fair-use for education; re-download via `python tools/fetch_history_images.py` |
 | `c60.jpg` | https://commons.wikimedia.org/wiki/File:Buckminsterfullerene-perspective-3D-balls.png | Check Commons page for license before redistribution |
+| `christiaan huygens wave theory of light.jpg` | User-provided (likely Wikimedia Commons) | Educational use — verify source before redistribution |
+| `Grimaldi_experiment_1.png` | User-provided (likely Wikimedia Commons) | Educational use — verify source before redistribution |
+| `Grimaldi_experiment_2.png` | User-provided (likely Wikimedia Commons) | Educational use — verify source before redistribution |
+| `Opticks-newton.jpg` | User-provided (likely Wikimedia Commons) | Educational use — verify source before redistribution |
+| `Arago spot, Poisson spot.png` | User-provided (likely Wikimedia Commons) | Educational use — verify source before redistribution |
+| `photo-electric.png` | User-provided (likely Wikimedia Commons) | Educational use — verify source before redistribution |
 
 If `hitachi_buildup.jpg` is missing (rate-limited download), the slide shows
 an offline placeholder card. Re-run the fetch script later to complete the set.

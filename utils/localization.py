@@ -32,6 +32,10 @@ class LocalizationService:
             "en": "© 2026 — Created by Amir Mohammad Yousefvand",
             "fa": f"{RLM}ساخته شده توسط Amir Mohammad Yousefvand © ۲۰۲۶{RLM}"
         },
+        "github_link": {
+            "en": "GitHub",
+            "fa": f"{RLM}گیت‌هاب{RLM}"
+        },
         "mode_classical": {
             "en": "Classical Wave Optics",
             "fa": f"{RLM}نورشناسی موجی کلاسیک{RLM}"
@@ -325,6 +329,10 @@ class LocalizationService:
         "plot_1d_xlabel": {
             "en": "Screen Position y (mm)",
             "fa": "مکان روی پرده y (mm)"
+        },
+        "plot_1d_xlabel_base": {
+            "en": "Screen Position y",
+            "fa": "مکان روی پرده y"
         },
         "plot_1d_ylabel": {
             "en": "Normalized Intensity I / I₀",

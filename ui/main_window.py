@@ -50,6 +50,10 @@ from ui.views.calculations_view import CalculationsView
 from ui.views.history_view import HistoryView
 from ui.views.guide_view import SoftwareGuideView
 
+import webbrowser
+
+GITHUB_REPO_URL = "https://github.com/AmirMoYousefVand/Double-slit-experiment-Simulator"
+
 
 class MainWindow(ctk.CTk):
     """
@@ -113,6 +117,9 @@ class MainWindow(ctk.CTk):
             particle_category=ParticleCategory.ELECTRON,
             optical_params=self.optical_params
         )
+        # QuantumEngine.__init__ overwrote the shared wavelength with the
+        # matter-wave value; restore the classical default before first render.
+        self.optical_params.wavelength_m = DEFAULT_WAVELENGTH_NM * 1e-9
 
         # Screen spatial coordinates grid
         self.y_grid_points = 1200
@@ -367,31 +374,97 @@ class MainWindow(ctk.CTk):
         self.metrics_panel.grid(row=1, column=0, sticky="ew", pady=(6, 0))
 
         # ======================================================================
-        # Footer Bar — Copyright Credit
+        # Footer Bar — Copyright Credit + GitHub Repo Link
         # ======================================================================
         self.footer_bar = ctk.CTkFrame(self, height=22, corner_radius=0, fg_color="#18181B")
         self.footer_bar.grid(row=2, column=0, columnspan=2, sticky="ew")
 
+        self.footer_inner = ctk.CTkFrame(self.footer_bar, fg_color="transparent")
+        self.footer_inner.pack(pady=3)
+
+        # Clickable GitHub mark (text fallback if the asset is missing)
+        self._github_image = None
+        gh_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "assets", "Logo", "github-mark.png"
+        )
+        if os.path.exists(gh_path):
+            try:
+                from PIL import Image
+                with Image.open(gh_path) as im:
+                    im = im.convert("RGBA").resize((16, 16), Image.LANCZOS)
+                    self._github_image = ctk.CTkImage(
+                        light_image=im.copy(), dark_image=im.copy(), size=(16, 16)
+                    )
+            except Exception as e:
+                print(f"Warning: GitHub icon load failed: {e}")
+
+        self.btn_github = ctk.CTkButton(
+            self.footer_inner,
+            text="" if self._github_image is not None else LocalizationService.get("github_link"),
+            image=self._github_image,
+            width=26 if self._github_image is not None else 70,
+            height=16,
+            corner_radius=4,
+            fg_color="transparent",
+            hover_color="#334155",
+            font=FontManager.get_number_font(9, "bold"),
+            text_color="#9CA3AF",
+            command=self._open_github_repo
+        )
+
         self.copyright_label = ctk.CTkLabel(
-            self.footer_bar,
+            self.footer_inner,
             text=LocalizationService.get("copyright"),
             font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10),
             text_color="#6B7280"
         )
-        self.copyright_label.pack(pady=3)
+        self._pack_footer_children(is_fa)
+
+    def _pack_footer_children(self, is_fa: bool):
+        """Lays out [icon][text] in English and flips to [text][icon] for RTL."""
+        for widget in (self.btn_github, self.copyright_label):
+            widget.pack_forget()
+        if is_fa:
+            self.copyright_label.pack(side="left")
+            self.btn_github.pack(side="left", padx=(8, 0))
+        else:
+            self.btn_github.pack(side="left", padx=(0, 8))
+            self.copyright_label.pack(side="left")
+
+    def _open_github_repo(self):
+        """Opens the project repository in the default web browser."""
+        try:
+            webbrowser.open_new_tab(GITHUB_REPO_URL)
+        except Exception as e:
+            print(f"Failed to open GitHub repository: {e}")
 
     # ==========================================================================
     # Optical & Physical Calculations Coordination
     # ==========================================================================
     def _adapt_screen_span(self):
-        """Dynamically scales screen spatial span to ensure ~10-15 fringes are visible."""
+        """Dynamically scales screen spatial span to ensure ~10-15 fringes are visible.
+
+        No millimeter floor: matter-wave fringes (electron ~0.5 µm, C60 ~11 pm)
+        would otherwise be clamped to a 5 mm span and alias into noise. With the
+        span always 16×Δy, grid points per fringe stay constant (1200/16 = 75).
+        """
         features = self.classical_engine.get_analytical_features()
         dy = features["fringe_spacing_dy_m"]
         if dy > 0:
-            target_span = max(dy * 16.0, 0.005)
+            target_span = max(dy * 16.0, 1e-12)
             target_span = min(target_span, 0.20)
             self.screen_span_y_m = target_span
             self.y_grid_m = np.linspace(-self.screen_span_y_m / 2.0, self.screen_span_y_m / 2.0, self.y_grid_points)
+
+    def _display_colors(self):
+        """(rgb, hex) for the current mode — particle false-colour in quantum
+        mode, since the shared matter-wave wavelength maps to UV/violet."""
+        wl_nm = self.optical_params.wavelength_m * 1e9
+        if self.mode == "quantum":
+            cat = self.quantum_engine.particle.category
+            return ColorUtils.get_particle_color(cat, wl_nm), ColorUtils.get_particle_hex(cat, wl_nm)
+        return ColorUtils.wavelength_to_rgb(wl_nm), ColorUtils.wavelength_to_hex(wl_nm)
 
     def _recalculate_classical_field(self):
         """Computes analytical values and updates all 5 views."""
@@ -402,10 +475,8 @@ class MainWindow(ctk.CTk):
         envelope = self.classical_engine.compute_diffraction_envelope(self.y_grid_m)
         features = self.classical_engine.get_analytical_features()
 
-        # Wavelength color
+        base_rgb, curve_hex = self._display_colors()
         wl_nm = self.optical_params.wavelength_m * 1e9
-        base_rgb = ColorUtils.wavelength_to_rgb(wl_nm)
-        curve_hex = ColorUtils.wavelength_to_hex(wl_nm)
 
         # 1. Update 1D Profile View
         self.profile_1d_view.update_theoretical_profile(
@@ -455,11 +526,13 @@ class MainWindow(ctk.CTk):
         self.calculations_view.update_calculations(
             optical_params=self.optical_params,
             quantum_engine=self.quantum_engine if self.mode == "quantum" else None,
-            features=features
+            features=features,
+            screen_span_y_m=self.screen_span_y_m
         )
 
-        # 6. Feed live params into History tab demo slides
-        if hasattr(self, "history_view"):
+        # 6. Feed live params into History tab demo slides (classical only —
+        # quantum mode carries a matter-wave wavelength that would alias them)
+        if self.mode == "classical" and hasattr(self, "history_view"):
             try:
                 self.history_view.update_optical_params(optical_params=self.optical_params)
             except Exception:
@@ -491,15 +564,36 @@ class MainWindow(ctk.CTk):
     # ==========================================================================
     def _handle_mode_change(self, selected_mode: str):
         """Switches between Classical Wave and Quantum Mechanics simulations."""
+        from utils.numeric_input import clamp
         if selected_mode == LocalizationService.get("mode_classical"):
             self.mode = "classical"
             self.is_quantum_running = False
+            # Restore the classical wavelength the panel slider still holds
+            # (quantum mode overwrote the shared optical_params with matter λ)
+            wl_nm = clamp("wavelength_nm", float(self.control_panel.get_parameter_value("wavelength_nm")))
+            self.optical_params.wavelength_m = wl_nm * 1e-9
+            if getattr(self, "_saved_refractive_index_n", None) is not None:
+                self.optical_params.refractive_index_n = self._saved_refractive_index_n
+                self.control_panel.set_parameter_value("refractive_index", self._saved_refractive_index_n)
+                self._saved_refractive_index_n = None
+            self.classical_engine.update_params(wavelength_m=self.optical_params.wavelength_m)
+            self.quantum_engine.invalidate_cache()
             self.quantum_panel.set_paused_state()
             self.quantum_panel.grid_forget()
             self.control_panel.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
             self._recalculate_classical_field()
         else:
             self.mode = "quantum"
+            # Matter waves: refractive index of a classical medium does not
+            # apply; save the user's setting and restore it on exit.
+            self._saved_refractive_index_n = self.optical_params.refractive_index_n
+            self.optical_params.refractive_index_n = 1.0
+            self.quantum_engine.update_wavelength()
+            self.quantum_engine.reset_hits()
+            self.classical_engine.update_params(
+                wavelength_m=self.optical_params.wavelength_m,
+                refractive_index_n=1.0
+            )
             self.control_panel.grid_forget()
             self.quantum_panel.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
             self.screen_2d_view.clear_quantum_screen()
@@ -665,6 +759,13 @@ class MainWindow(ctk.CTk):
             text=LocalizationService.get("copyright"),
             font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10)
         )
+        if hasattr(self, "btn_github"):
+            if self._github_image is None:
+                self.btn_github.configure(
+                    text=LocalizationService.get("github_link"),
+                    font=FontManager.get_persian_font(9, "bold") if is_fa else FontManager.get_number_font(9, "bold")
+                )
+            self._pack_footer_children(is_fa)
 
         self.btn_lang.configure(
             text=LocalizationService.get("lang_switch"),
@@ -918,8 +1019,7 @@ class MainWindow(ctk.CTk):
         elif active_tab in ("tab_2d", tab_2d_title):
             # Export 2D Screen with millimeter ruler
             intensity = self.classical_engine.compute_intensity_profile(self.y_grid_m)
-            wl_nm = self.optical_params.wavelength_m * 1e9
-            rgb = ColorUtils.wavelength_to_rgb(wl_nm)
+            rgb, _hex = self._display_colors()
             result = ExportService.export_screen_image(
                 filepath=filepath,
                 intensity_1d=intensity,
@@ -951,7 +1051,8 @@ class MainWindow(ctk.CTk):
                 optical_params=self.optical_params,
                 features=features,
                 inspector_y_mm=self.calculations_view.inspector_y_mm,
-                is_persian=LocalizationService.is_persian()
+                is_persian=LocalizationService.is_persian(),
+                quantum_engine=self.quantum_engine if self.mode == "quantum" else None
             )
         elif active_tab in ("tab_hist", tab_hist_title):
             # Export the history tab's live fringe figure when present
@@ -981,7 +1082,7 @@ class MainWindow(ctk.CTk):
 
         intensity = self.classical_engine.compute_intensity_profile(self.y_grid_m)
         wl_nm = self.optical_params.wavelength_m * 1e9
-        base_rgb = ColorUtils.wavelength_to_rgb(wl_nm)
+        base_rgb, _hex = self._display_colors()
 
         result = ExportService.export_3d_model(
             filepath=filepath,
@@ -1096,7 +1197,8 @@ class MainWindow(ctk.CTk):
             optical_params=self.optical_params,
             features=features,
             inspector_y_mm=self.calculations_view.inspector_y_mm,
-            is_persian=LocalizationService.is_persian()
+            is_persian=LocalizationService.is_persian(),
+            quantum_engine=self.quantum_engine if self.mode == "quantum" else None
         )
         if result["success"]:
             messagebox.showinfo("Calculations Image Saved", result["message"])

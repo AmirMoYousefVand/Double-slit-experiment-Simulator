@@ -120,8 +120,10 @@ class QuantumEngine:
     def _ensure_cdf(self, screen_half_span_m: float, grid_points: int = 2500):
         """Constructs and caches cumulative distribution function for inverse transform sampling."""
         if not self._cache_dirty and self._cached_y_grid is not None and self._cached_cdf is not None:
-            # Check if grid span matches
-            if abs(self._cached_y_grid[-1] - screen_half_span_m) < 1e-7:
+            # Check if grid span matches (relative tolerance — absolute 1e-7 m
+            # would exceed a C60 half-span of ~9e-11 m by three orders of magnitude)
+            tol = max(1e-30, abs(screen_half_span_m) * 1e-6)
+            if abs(self._cached_y_grid[-1] - screen_half_span_m) <= tol:
                 return
 
         y_grid = np.linspace(-screen_half_span_m, screen_half_span_m, grid_points)

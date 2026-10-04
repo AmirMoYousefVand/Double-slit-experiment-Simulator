@@ -148,13 +148,13 @@ GUIDE_MODULES: List[Dict[str, Any]] = [
         "category_en": "Quantum Mechanics",
         "icon": "⚛",
         "points_fa": [
-            "تابش ذرات کوانتومی: با کلید حالت کوانتوم در بالای برنامه، بین ۵ نوع ذره تابشی (فوتون، الکترون، نوترون، آلفا، مولکول C₆₀) انتخاب کن.",
+            "تابش ذرات کوانتومی: با کلید حالت کوانتوم در بالای برنامه، بین ۳ نوع ذره تابشی (فوتون، الکترون، باکی‌بال C₆₀) انتخاب کن.",
             "طول موج دوبروی (λ = h/p): با تغییر انرژی ذره بر حسب الکترون‌ولت (eV) یا سرعت (m/s)، تغییر طول موج ماده را مشاهده کن.",
             "شبیه‌ساز مونت‌کارلو ۶۰ فریم: دکمه پخش (Play) را بزن تا ذرات دانه‌دانه شلیک شده و نوارهای تداخلی را بسازند.",
             "آزمون همگرایی کای-دو (χ²): برنامه همگرایی آماری نقاط ثبت‌شده را با تابع احتمال تئوری مقایسه کرده و در پنل متریک نمایش می‌دهد.",
         ],
         "points_en": [
-            "Quantum Particle Emission: switch to Quantum mode to shoot Photons, Electrons, Neutrons, Alphas, or C60 Buckyballs.",
+            "Quantum Particle Emission: switch to Quantum mode to shoot Photons, Electrons, or C60 Buckyballs.",
             "De Broglie Wavelength (λ = h/p): change particle energy (eV) or velocity (m/s) to observe matter wave dilation.",
             "High-Speed Monte Carlo Simulation: press Play to emit particles one by one and witness the emergence of interference fringes.",
             "Chi-Square Convergence Test (χ²): computes statistical convergence between discrete impacts and theoretical probability density.",

@@ -41,9 +41,15 @@ SLIDES: List[Dict[str, Any]] = [
             "However, in 1704, Sir Isaac Newton championed the corpuscular particle model in Opticks. Due to Newton's monumental scientific authority, the particle theory dominated science for nearly a full century, sidelining wave theory.",
         ],
         "figure": {
-            "kind": "duel",
-            "caption_fa": "دوئل تاریخی نور: ذرات بالستیک نیوتن در برابر موجک‌های هم‌پوشان هویگنس",
-            "caption_en": "Historical Duel: Newton's Ballistic Particles vs. Huygens' Overlapping Wavelets"
+            "kind": "photo",
+            "files": [
+                "Grimaldi_experiment_1.png",
+                "Grimaldi_experiment_2.png",
+                "christiaan huygens wave theory of light.jpg",
+                "Opticks-newton.jpg",
+            ],
+            "caption_fa": "پراش گریمالدی، نظریه موج هویگنس و «اپتیکس» نیوتن: سه سند از دوئل ذره و موج",
+            "caption_en": "Grimaldi's Diffraction, Huygens' Wave Theory and Newton's Opticks: Documents of the Particle-Wave Duel"
         },
     },
     {
@@ -89,9 +95,12 @@ SLIDES: List[Dict[str, Any]] = [
         ],
         "figure": {
             "kind": "photo",
-            "file": "fringes.jpg",
-            "caption_fa": "نوارهای واقعی تداخل و پراش فرانهوفر روی پرده آزمایشگاهی",
-            "caption_en": "Real Double-Slit Interference and Diffraction Fringes on a Detector"
+            "files": [
+                "Arago spot, Poisson spot.png",
+                "fringes.jpg",
+            ],
+            "caption_fa": "لکه آراگو (پواسون) در مرکز سایه و نوارهای واقعی تداخل فرانهوفر روی پرده",
+            "caption_en": "Arago's (Poisson's) Spot at the Shadow Center and Real Fraunhofer Fringes on a Detector"
         },
     },
     {
@@ -113,9 +122,12 @@ SLIDES: List[Dict[str, Any]] = [
         ],
         "figure": {
             "kind": "photo",
-            "file": "hitachi_buildup.jpg",
-            "caption_fa": "انباشت دانه‌دانه و تدریجی الکترون‌های تکی در آزمایشگاه هیتاچی (۱۹۸۹)",
-            "caption_en": "Dot-by-Dot Single-Electron Buildup at Hitachi Laboratory (1989)"
+            "files": [
+                "photo-electric.png",
+                "hitachi_buildup.jpg",
+            ],
+            "caption_fa": "اثر فوتوالکتریک اینشتین (۱۹۰۵) و انباشت دانه‌دانه الکترون‌های تکی در آزمایشگاه هیتاچی (۱۹۸۹)",
+            "caption_en": "Einstein's Photoelectric Effect (1905) and Dot-by-Dot Single-Electron Buildup at Hitachi (1989)"
         },
     },
     # ---------------- THEORY ----------------

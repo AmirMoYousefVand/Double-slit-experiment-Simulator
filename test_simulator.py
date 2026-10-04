@@ -28,9 +28,10 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from physics.particle_types import ParticleCategory, PARTICLE_PRESETS
+from physics.particle_types import ParticleCategory, PARTICLE_PRESETS, de_broglie_formula
 from physics.classical_engine import OpticalParameters, ClassicalEngine
 from physics.quantum_engine import QuantumEngine
+from config import PARAM_LIMITS
 from utils.color_utils import ColorUtils
 from utils.stats_calculator import StatsCalculator
 from utils.export_service import ExportService
@@ -769,9 +770,221 @@ def test_web_presentation_service():
     service.stop_server()
     print("       -> Flask presentation daemon, HTML5/KaTeX payload, and font endpoints verified successfully!")
 
+# =============================================================================
+# Regression suite for quantum display/state fixes, span adaptation,
+# multi-image slides, and the shared unit/formula helpers.
+# =============================================================================
+
+def test_unit_formatter():
+    print("[23/29] Testing Unit-Aware Length Formatter...")
+    from utils.units import format_length, choose_length_scale
+    assert choose_length_scale(2e-3)[1] == "mm"
+    assert choose_length_scale(5e-7)[1] == "µm"
+    assert choose_length_scale(5e-9)[1] == "nm"
+    assert choose_length_scale(5e-12)[1] == "pm"
+    assert format_length(2.5312e-3) == "2.531 mm"
+    assert format_length(4.904e-7) == "0.490 µm"
+    assert format_length(1.108e-11) == "11.08 pm"
+    assert format_length(1.226e-10) == "0.1226 nm"
+    assert format_length(2.77e-12) == "2.77 pm"
+    # Matter-wave values must never render as a truncated mm/nm string
+    assert "0.0 nm" not in format_length(2.77e-12)
+    assert "0.000 mm" not in format_length(4.904e-7)
+    print("       -> mm/µm/nm/pm selection and spot values verified!")
+
+def test_screen_span_adaptation():
+    print("[24/29] Testing Screen Span Adaptation (No 5mm Floor)...")
+    from ui.main_window import MainWindow
+    app = MainWindow()
+    app.update_idletasks()
+    try:
+        dy = app.classical_engine.get_analytical_features()["fringe_spacing_dy_m"]
+        assert abs(app.screen_span_y_m - 16.0 * dy) < 1e-9, app.screen_span_y_m
+        assert 0.040 < app.screen_span_y_m < 0.041, app.screen_span_y_m
+        assert len(app.y_grid_m) == 1200
+
+        # Electron: fringes ~0.49 µm -> span must drop to ~7.8 µm (floor removed)
+        app.mode = "quantum"
+        app.quantum_engine.set_particle(ParticleCategory.ELECTRON)
+        app.quantum_engine.update_wavelength()
+        app._recalculate_classical_field()
+        assert app.screen_span_y_m < 2e-5, f"electron span clamped: {app.screen_span_y_m}"
+        dy_e = app.classical_engine.get_analytical_features()["fringe_spacing_dy_m"]
+        assert abs(app.screen_span_y_m - 16.0 * dy_e) < 1e-10
+        assert len(app.y_grid_m) == 1200
+
+        # C60: fringes ~11 nm -> span ~1.77e-7 m
+        app.quantum_engine.set_particle(ParticleCategory.BUCKYBALL)
+        app.quantum_engine.update_wavelength()
+        app._recalculate_classical_field()
+        assert 1e-7 < app.screen_span_y_m < 3e-7, f"c60 span: {app.screen_span_y_m}"
+        print("       -> Classical 40.5 mm / electron ~7.8 µm / C60 ~0.18 µm spans verified!")
+    finally:
+        app.destroy()
+
+def test_quantum_sampling_micro_span():
+    print("[25/29] Testing Micro-Span Quantum Sampling (Relative CDF Tolerance)...")
+    q = QuantumEngine(ParticleCategory.BUCKYBALL)
+    half = 8.85e-8  # half of the ~1.77e-7 m C60 screen span
+    q._ensure_cdf(half)
+    assert abs(q._cached_y_grid[-1] - half) <= max(1e-30, half * 1e-6)
+    grid_obj = q._cached_y_grid
+    q._ensure_cdf(half)
+    assert q._cached_y_grid is grid_obj, "relative-tolerance cache miss on identical span"
+    # Different span must rebuild
+    q._ensure_cdf(half * 2.0)
+    assert q._cached_y_grid is not grid_obj
+
+    y, z = q.sample_particles(2000, screen_span_y_m=1.77e-7, screen_span_z_m=0.02)
+    assert y.min() < 0.0 < y.max(), "samples collapsed to a single point"
+    pdf = q.compute_probability_density(q._cached_y_grid)
+    contrast = pdf.max() / max(pdf.min(), 1e-300)
+    assert contrast > 10, f"flat-histogram regression: contrast={contrast}"
+    print("       -> C60 CDF cache, sampling span and fringe contrast verified!")
+
+def test_calculations_quantum_display():
+    print("[26/29] Testing Per-Particle Calculations Display (Card 5 / Card 3)...")
+    import customtkinter as ctk
+    from ui.views.calculations_view import CalculationsView
+    LocalizationService.set_language("en")
+    root = ctk.CTk()
+    try:
+        view = CalculationsView(root)
+        for cat, must, must_not in [
+            (ParticleCategory.PHOTON, ["eV", "h·c/E"], []),
+            (ParticleCategory.ELECTRON, ["eV", "nm"], ["0.0 nm"]),
+            (ParticleCategory.BUCKYBALL, ["m/s", "pm"], ["0.15 eV", "0.0 nm"]),
+        ]:
+            opt = OpticalParameters(
+                wavelength_m=632.8e-9, slit_distance_d_m=0.25e-3,
+                slit_width_a_m=0.04e-3, screen_distance_L_m=1.0
+            )
+            qe = QuantumEngine(cat, optical_params=opt)
+            features = ClassicalEngine(opt).get_analytical_features()
+            view.update_calculations(opt, qe, features, screen_span_y_m=0.04)
+
+            formula = view.lbl_card5_formula.cget("text")
+            assert de_broglie_formula(cat)["plain"] in formula, (cat, formula)
+            sub = view.lbl_card5_sub.cget("text")
+            for token in must:
+                assert token in sub, (cat, token, sub)
+            for token in must_not:
+                assert token not in sub, (cat, token, sub)
+            card3 = view.lbl_card3_sub.cget("text")
+            assert "0.000 mm" not in card3, (cat, card3)
+            assert "0.0 nm" not in card3, (cat, card3)
+
+        # C60 must report live velocity-derived values, not a stale 0.15 eV
+        opt = OpticalParameters(wavelength_m=632.8e-9, slit_distance_d_m=0.25e-3,
+                                slit_width_a_m=0.04e-3, screen_distance_L_m=1.0)
+        qe = QuantumEngine(ParticleCategory.BUCKYBALL, optical_params=opt)
+        qe.set_velocity(400.0)
+        features = ClassicalEngine(opt).get_analytical_features()
+        view.update_calculations(opt, qe, features, screen_span_y_m=1.77e-7)
+        sub = view.lbl_card5_sub.cget("text")
+        assert "400.0 m/s" in sub, sub
+        assert "0.15 eV" not in sub, sub
+        print("       -> Per-particle formulas, live C60 velocity and unit-safe substitutions verified!")
+    finally:
+        LocalizationService.set_language("fa")
+        root.destroy()
+
+def test_mode_switch_state_restore():
+    print("[27/29] Testing Mode-Switch State Restore (Wavelength / n / Hits)...")
+    from ui.main_window import MainWindow
+    app = MainWindow()
+    app.update_idletasks()
+    try:
+        # W8a: fresh startup must be classical 632.8 nm, not the electron's 0.12 nm
+        assert abs(app.optical_params.wavelength_m - 632.8e-9) < 1e-12, app.optical_params.wavelength_m
+
+        app.control_panel.set_parameter_value("wavelength_nm", 550.0)
+        app.control_panel.set_parameter_value("refractive_index", 1.333)
+
+        app._handle_mode_change(LocalizationService.get("mode_quantum"))
+        assert app.mode == "quantum"
+        assert app.optical_params.refractive_index_n == 1.0, "n must be forced to 1 for matter waves"
+        assert app.optical_params.wavelength_m < 1e-9, app.optical_params.wavelength_m
+
+        app.quantum_engine.hits_y.extend([1e-9, 2e-9])
+        assert len(app.quantum_engine.hits_y) == 2
+
+        app._handle_mode_change(LocalizationService.get("mode_classical"))
+        assert app.mode == "classical"
+        assert abs(app.optical_params.wavelength_m - 550e-9) < 1e-9, app.optical_params.wavelength_m
+        assert abs(app.optical_params.refractive_index_n - 1.333) < 1e-6, app.optical_params.refractive_index_n
+
+        app._handle_mode_change(LocalizationService.get("mode_quantum"))
+        assert len(app.quantum_engine.hits_y) == 0, "stale hits must be cleared on quantum re-entry"
+        print("       -> Startup λ, classical restore, n save/restore and hit reset verified!")
+    finally:
+        app.destroy()
+
+def test_particle_switch_callback_order():
+    print("[28/29] Testing Particle Switch Callback Order & Emission Limits...")
+    import customtkinter as ctk
+    from ui.components.quantum_panel import QuantumPanel
+    root = ctk.CTk()
+    try:
+        events = []
+        qp = QuantumPanel(
+            root,
+            on_particle_change=lambda cat: events.append("particle"),
+            on_energy_change=lambda v: events.append("energy"),
+            on_rate_change=lambda v: None,
+            on_which_way_toggle=lambda b: None,
+            on_play=lambda: None,
+            on_pause=lambda: None,
+            on_step=lambda: None,
+            on_reset=lambda: None,
+        )
+        qp._handle_particle_select(LocalizationService.get("particle_photon"))
+        assert events and events[0] == "particle", f"order: {events}"
+        assert "energy" in events[1:], events
+        # Emission slider must follow config PARAM_LIMITS (max 5000), not 2000
+        assert qp.rate_slider.cget("to") == PARAM_LIMITS["emission_rate"]["max"]
+        print("       -> particle-first callback order and PARAM_LIMITS emission range verified!")
+    finally:
+        root.destroy()
+
+def test_docx_quantum_substitution():
+    print("[29/29] Testing Word Export Per-Particle Substitution (C60)...")
+    import tempfile
+    import docx as docx_lib
+    opt = OpticalParameters(
+        wavelength_m=2.77e-12, slit_distance_d_m=0.25e-3,
+        slit_width_a_m=0.04e-3, screen_distance_L_m=1.0
+    )
+    qe = QuantumEngine(ParticleCategory.BUCKYBALL, optical_params=opt)
+    features = ClassicalEngine(opt).get_analytical_features()
+    fd, path = tempfile.mkstemp(suffix=".docx")
+    os.close(fd)
+    try:
+        result = DocxEquationExporter.export_report_to_docx(
+            filepath=path, optical_params=opt, quantum_engine=qe,
+            features=features, inspector_y_mm=0.0, is_persian=False
+        )
+        assert result["success"], result
+        doc = docx_lib.Document(path)
+        parts = [p.text for p in doc.paragraphs]
+        for tbl in doc.tables:
+            for row in tbl.rows:
+                for cell in row.cells:
+                    parts.append(cell.text)
+        text = "\n".join(parts)
+        assert "m/s" in text, "C60 report must show velocity"
+        assert "Energy = 0.15 eV" not in text, "stale eV line still present"
+        assert " pm" in text, "C60 wavelength must be shown in pm"
+        print("       -> C60 report shows v [m/s] and λ [pm], no stale Energy line!")
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
 if __name__ == "__main__":
     print("=" * 70)
-    print("RUNNING EXTENDED DOUBLE-SLIT SIMULATOR 22-TEST VERIFICATION SUITE")
+    print("RUNNING EXTENDED DOUBLE-SLIT SIMULATOR 29-TEST VERIFICATION SUITE")
     print("=" * 70)
 
     test_classical_optics()
@@ -796,6 +1009,13 @@ if __name__ == "__main__":
     test_history_view_headless()
     test_six_tab_gui_headless()
     test_web_presentation_service()
+    test_unit_formatter()
+    test_screen_span_adaptation()
+    test_quantum_sampling_micro_span()
+    test_calculations_quantum_display()
+    test_mode_switch_state_restore()
+    test_particle_switch_callback_order()
+    test_docx_quantum_substitution()
     print("=" * 70)
-    print("ALL 22 VERIFICATION TESTS PASSED SUCCESSFULLY! (100% PASS)")
+    print("ALL 29 VERIFICATION TESTS PASSED SUCCESSFULLY! (100% PASS)")
     print("=" * 70)

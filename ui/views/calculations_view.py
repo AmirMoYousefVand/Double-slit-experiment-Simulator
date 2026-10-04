@@ -12,7 +12,9 @@ import numpy as np
 
 from utils.localization import LocalizationService, RLM
 from utils.font_manager import FontManager
+from utils.units import format_length
 from physics.classical_engine import OpticalParameters
+from physics.particle_types import ParticleCategory, de_broglie_formula, de_broglie_substitution
 from physics.quantum_engine import QuantumEngine
 
 class CalculationsView(ctk.CTkScrollableFrame):
@@ -192,7 +194,7 @@ class CalculationsView(ctk.CTkScrollableFrame):
         )
         self.lbl_card5_formula = ctk.CTkLabel(
             card5,
-            text="λ_dB = h / p = h / √(2·m·E_k)  [De Broglie Relation]",
+            text=de_broglie_formula(ParticleCategory.ELECTRON)["plain"] + "  [De Broglie Relation]",
             font=FontManager.get_number_font(11, "bold"),
             text_color="#A78BFA"
         )
@@ -200,7 +202,10 @@ class CalculationsView(ctk.CTkScrollableFrame):
 
         self.lbl_card5_sub = ctk.CTkLabel(
             card5,
-            text="Electron: E = 100.0 eV => Momentum p = 5.40e-24 kg·m/s => λ_dB = 0.1226 nm",
+            text=de_broglie_substitution(
+                ParticleCategory.ELECTRON, "Electron (Matter Wave)",
+                100.0, 5.93e6, 0.1226e-9
+            ),
             font=FontManager.get_number_font(11),
             text_color="#E0E0E0"
         )
@@ -296,6 +301,7 @@ class CalculationsView(ctk.CTkScrollableFrame):
             text_color="#9E9E9E"
         )
         insp_unit_lbl.pack(side="left")
+        self.insp_unit_lbl = insp_unit_lbl
 
         insp_range_lbl = ctk.CTkLabel(
             insp_entry_row,
@@ -304,6 +310,10 @@ class CalculationsView(ctk.CTkScrollableFrame):
             text_color="#71717A"
         )
         insp_range_lbl.pack(side="right")
+        self.insp_range_lbl = insp_range_lbl
+        # Display scale for the inspector: meters -> current display unit.
+        # Defaults match the initial ±15 mm slider range.
+        self.insp_scale, self.insp_unit, self.insp_half_disp = 1e3, "mm", 15.0
 
         # Results Grid inside Inspector
         res_grid = ctk.CTkFrame(inspector_card, fg_color="#121214", corner_radius=6)
@@ -409,16 +419,44 @@ class CalculationsView(ctk.CTkScrollableFrame):
 
         self._recalculate_inspector()
 
+    def _insp_display_from_mm(self) -> float:
+        """Current inspector position in display units (mm * scale)."""
+        return self.inspector_y_mm * 1e-3 * self.insp_scale
+
+    def _set_inspector_range(self, span_m: float):
+        """Rescales the inspector slider/entry to the active screen span so
+        matter-wave screens (µm / nm wide) remain reachable."""
+        from utils.units import choose_length_scale
+        half_m = max(abs(span_m) / 2.0, 1e-15)
+        scale, unit = choose_length_scale(half_m)
+        half_disp = half_m * scale
+        if unit == self.insp_unit and abs(half_disp - self.insp_half_disp) <= abs(half_disp) * 1e-9:
+            return
+        self.insp_scale, self.insp_unit, self.insp_half_disp = scale, unit, half_disp
+        self.insp_slider.configure(from_=-half_disp, to=half_disp)
+        # Clamp the current position into the new range (display units)
+        cur_disp = max(-half_disp, min(half_disp, self._insp_display_from_mm()))
+        self.inspector_y_mm = cur_disp / (scale * 1e-3)
+        self.insp_slider.set(cur_disp)
+        self.insp_unit_lbl.configure(text=unit)
+        self.insp_range_lbl.configure(text=f"[{-half_disp:.2f} … +{half_disp:.2f}]")
+        if hasattr(self, "insp_entry") and not getattr(self, "_insp_syncing", False):
+            self.insp_entry.delete(0, "end")
+            self.insp_entry.insert(0, f"{cur_disp:.2f}")
+        self.insp_val_label.configure(text=f"{cur_disp:.2f} {unit}")
+
     def _on_inspector_slider_change(self, val: float):
         if getattr(self, "_insp_syncing", False):
             return
         self._insp_syncing = True
         try:
-            self.inspector_y_mm = max(-15.0, min(15.0, float(val)))
-            self.insp_val_label.configure(text=f"{self.inspector_y_mm:.2f} mm")
+            half = self.insp_half_disp
+            disp = max(-half, min(half, float(val)))
+            self.inspector_y_mm = disp / (self.insp_scale * 1e-3)
+            self.insp_val_label.configure(text=f"{disp:.2f} {self.insp_unit}")
             if hasattr(self, "insp_entry"):
                 self.insp_entry.delete(0, "end")
-                self.insp_entry.insert(0, f"{self.inspector_y_mm:.2f}")
+                self.insp_entry.insert(0, f"{disp:.2f}")
                 self.insp_entry.configure(border_color="#3F3F46")
             self._recalculate_inspector()
         finally:
@@ -433,18 +471,19 @@ class CalculationsView(ctk.CTkScrollableFrame):
         if parsed is None:
             self.insp_entry.configure(border_color="#F59E0B")
             return
-        if live and not (-15.0 <= parsed <= 15.0):
+        half = self.insp_half_disp
+        if live and not (-half <= parsed <= half):
             self.insp_entry.configure(border_color="#F59E0B")
             return
         self._insp_syncing = True
         try:
-            clamped = max(-15.0, min(15.0, parsed))
-            self.inspector_y_mm = clamped
-            self.insp_slider.set(clamped)
+            disp = max(-half, min(half, parsed))
+            self.inspector_y_mm = disp / (self.insp_scale * 1e-3)
+            self.insp_slider.set(disp)
             self.insp_entry.delete(0, "end")
-            self.insp_entry.insert(0, f"{clamped:.2f}")
+            self.insp_entry.insert(0, f"{disp:.2f}")
             self.insp_entry.configure(border_color="#3F3F46")
-            self.insp_val_label.configure(text=f"{clamped:.2f} mm")
+            self.insp_val_label.configure(text=f"{disp:.2f} {self.insp_unit}")
             self._recalculate_inspector()
         finally:
             self._insp_syncing = False
@@ -453,34 +492,35 @@ class CalculationsView(ctk.CTkScrollableFrame):
         self,
         optical_params: OpticalParameters,
         quantum_engine: Optional[QuantumEngine],
-        features: Dict[str, Any]
+        features: Dict[str, Any],
+        screen_span_y_m: float = 0.04
     ):
         """Updates live substitutions on all cards."""
         self.optical_params = optical_params
         self.quantum_engine = quantum_engine
         self.features = features
+        self._set_inspector_range(screen_span_y_m)
 
-        wl_nm = optical_params.wavelength_m * 1e9
         d_mm = optical_params.slit_distance_d_m * 1000.0
         a_mm = optical_params.slit_width_a_m * 1000.0
         L_m = optical_params.screen_distance_L_m
         n = optical_params.refractive_index_n
-        dy_mm = features.get("fringe_spacing_dy_mm", 0.0)
-        env_mm = features.get("central_envelope_width_mm", 0.0)
+        dy_m = features.get("fringe_spacing_dy_m", 0.0)
+        env_m = features.get("central_envelope_width_m", 0.0)
 
         # Card 1 substitution
         self.lbl_card1_sub.configure(
             text=f"Δr = ({d_mm:.3f} mm) × sin(θ) ≈ {d_mm:.3f} × (y / {L_m:.2f} m)"
         )
 
-        # Card 2 substitution
+        # Card 2 substitution (unit-aware orders)
         self.lbl_card2_sub.configure(
-            text=f"Central Max (m=0): y₀ = 0.00 mm | Order 1: y₁ = ±{dy_mm:.3f} mm | Order 2: y₂ = ±{2*dy_mm:.3f} mm"
+            text=f"Central Max (m=0): y₀ = 0 | Order 1: y₁ = ±{format_length(dy_m)} | Order 2: y₂ = ±{format_length(2 * dy_m)}"
         )
 
         # Card 3 substitution
         self.lbl_card3_sub.configure(
-            text=f"Δy = ({wl_nm:.1f} nm × {L_m:.2f} m) / ({n:.3f} × {d_mm:.3f} mm) = {dy_mm:.3f} mm"
+            text=f"Δy = ({format_length(optical_params.wavelength_m)} × {L_m:.2f} m) / ({n:.3f} × {d_mm:.3f} mm) = {format_length(dy_m)}"
         )
 
         # Card 4 substitution
@@ -489,17 +529,25 @@ class CalculationsView(ctk.CTkScrollableFrame):
         none_str = LocalizationService.get("missing_none")
         miss_txt = "m = ±" + ", ±".join([str(abs(m)) for m in miss if m > 0][:3]) if miss else none_str
         self.lbl_card4_sub.configure(
-            text=f"Central Envelope Width: W = 2·λ·L / a = {env_mm:.2f} mm | Ratio d/a = {ratio:.2f} => Missing Orders: {miss_txt}"
+            text=f"Central Envelope Width: W = 2·λ·L / a = {format_length(env_m)} | Ratio d/a = {ratio:.2f} => Missing Orders: {miss_txt}"
         )
 
-        # Card 5 substitution (Quantum)
+        # Card 5 substitution (Quantum) — per-particle formula and live values;
+        # C60 reports its actual velocity (set_velocity never updates energy_ev)
         if quantum_engine:
-            p_cat = quantum_engine.particle.name_en if not LocalizationService.is_persian() else quantum_engine.particle.name_fa
-            ev = quantum_engine.energy_ev
-            wl_m = quantum_engine.optical_params.wavelength_m
-            wl_display = f"{wl_m*1e9:.4f} nm" if wl_m > 1e-10 else f"{wl_m*1e12:.2f} pm"
+            cat = quantum_engine.particle.category
+            name = (quantum_engine.particle.name_fa if LocalizationService.is_persian()
+                    else quantum_engine.particle.name_en)
+            self.lbl_card5_formula.configure(
+                text=de_broglie_formula(cat)["plain"] + "  [De Broglie Relation]"
+            )
             self.lbl_card5_sub.configure(
-                text=f"{p_cat} | Energy/Voltage = {ev:.1f} | Calculated De Broglie λ = {wl_display}"
+                text=de_broglie_substitution(
+                    cat, name,
+                    quantum_engine.energy_ev,
+                    quantum_engine.velocity_ms,
+                    quantum_engine.optical_params.wavelength_m
+                )
             )
 
         self._recalculate_inspector()

@@ -21,7 +21,9 @@ from docx.oxml import parse_xml, OxmlElement
 from docx.oxml.ns import nsdecls, qn
 
 from physics.classical_engine import OpticalParameters
+from physics.particle_types import de_broglie_substitution
 from physics.quantum_engine import QuantumEngine
+from utils.units import format_length
 
 class DocxEquationExporter:
     """Generates professional scientific reports in Word format with native math equations."""
@@ -109,7 +111,6 @@ class DocxEquationExporter:
             if is_persian:
                 table._tbl.tblPr.append(parse_xml(f'<w:bidiVisual {nsdecls("w")}/>'))
 
-            wl_nm = optical_params.wavelength_m * 1e9
             d_mm = optical_params.slit_distance_d_m * 1000.0
             a_mm = optical_params.slit_width_a_m * 1000.0
             L_m = optical_params.screen_distance_L_m
@@ -118,20 +119,20 @@ class DocxEquationExporter:
             if not is_persian:
                 rows_data = [
                     ("Parameter", "Symbol & Formula", "Current Simulated Value"),
-                    ("Optical Wavelength (Vacuum)", "λ₀", f"{wl_nm:.2f} nm ({optical_params.wavelength_m:.4e} m)"),
+                    ("Optical Wavelength (Vacuum)", "λ₀", f"{format_length(optical_params.wavelength_m)} ({optical_params.wavelength_m:.4e} m)"),
                     ("Slit Separation (Center-to-Center)", "d", f"{d_mm:.3f} mm ({optical_params.slit_distance_d_m:.4e} m)"),
                     ("Slit Aperture Width", "a", f"{a_mm:.3f} mm ({optical_params.slit_width_a_m:.4e} m)"),
                     ("Slit-to-Screen Distance", "L", f"{L_m:.3f} m"),
-                    ("Medium Refractive Index", "n", f"{n:.3f} (λ_med = {optical_params.medium_wavelength_m*1e9:.2f} nm)")
+                    ("Medium Refractive Index", "n", f"{n:.3f} (λ_med = {format_length(optical_params.medium_wavelength_m)})")
                 ]
             else:
                 rows_data = [
                     ("پارامتر فیزیکی", "نماد و رابطه", "مقدار شبیه‌سازی‌شده"),
-                    ("طول موج نوری (در خلاء)", "λ₀", f"{wl_nm:.2f} nm ({optical_params.wavelength_m:.4e} m)"),
+                    ("طول موج نوری (در خلاء)", "λ₀", f"{format_length(optical_params.wavelength_m)} ({optical_params.wavelength_m:.4e} m)"),
                     ("فاصله دو شکاف (مرکز به مرکز)", "d", f"{d_mm:.3f} mm ({optical_params.slit_distance_d_m:.4e} m)"),
                     ("پهنای هر شکاف", "a", f"{a_mm:.3f} mm ({optical_params.slit_width_a_m:.4e} m)"),
                     ("فاصله شکاف‌ها تا پرده", "L", f"{L_m:.3f} m"),
-                    ("ضریب شکست محیط انتشار", "n", f"{n:.3f} (λ_med = {optical_params.medium_wavelength_m*1e9:.2f} nm)")
+                    ("ضریب شکست محیط انتشار", "n", f"{n:.3f} (λ_med = {format_length(optical_params.medium_wavelength_m)})")
                 ]
 
             for r_idx, row in enumerate(rows_data):
@@ -228,10 +229,10 @@ class DocxEquationExporter:
                 '<m:f><m:num><m:r><m:t>λ · L</m:t></m:r></m:num><m:den><m:r><m:t>d</m:t></m:r></m:den></m:f>'
                 '<m:r><m:t>  (Dark Minima)</m:t></m:r>'
             )
-            dy_mm = features.get("fringe_spacing_dy_mm", 0.0)
+            dy_m = features.get("fringe_spacing_dy_m", 0.0)
             title_2 = "B. Constructive & Destructive Interference Conditions" if not is_persian else "ب. شرایط تداخل سازنده و ویرانگر (موقعیت بیشینه‌ها و کمینه‌ها)"
             narr_2 = "Constructive interference occurs when path difference is an integer multiple of wavelength; destructive occurs for half-integer multiples." if not is_persian else "تداخل سازنده زمانی رخ می‌دهد که اختلاف راه مضرب درستی از طول موج باشد و تداخل ویرانگر در مضارب فرد نیم‌طول‌موج روی می‌دهد."
-            sub_2 = f"Order 0: 0.00 mm | Order 1: ±{dy_mm:.3f} mm | Order 2: ±{2*dy_mm:.3f} mm | Order 3: ±{3*dy_mm:.3f} mm" if not is_persian else f"مرتبه صفر: 0.00 mm | مرتبه اول: ±{dy_mm:.3f} mm | مرتبه دوم: ±{2*dy_mm:.3f} mm | مرتبه سوم: ±{3*dy_mm:.3f} mm"
+            sub_2 = f"Order 0: 0 | Order 1: ±{format_length(dy_m)} | Order 2: ±{format_length(2*dy_m)} | Order 3: ±{format_length(3*dy_m)}" if not is_persian else f"مرتبه صفر: 0 | مرتبه اول: ±{format_length(dy_m)} | مرتبه دوم: ±{format_length(2*dy_m)} | مرتبه سوم: ±{format_length(3*dy_m)}"
             add_equation_section(
                 title=title_2,
                 narrative=narr_2,
@@ -250,7 +251,7 @@ class DocxEquationExporter:
                 title=title_3,
                 narrative=narr_3,
                 omml_body=omml_3,
-                sub_text=f"Δy = ({wl_nm:.1f} nm × {L_m:.2f} m) / ({n:.3f} × {d_mm:.3f} mm) = {dy_mm:.3f} mm"
+                sub_text=f"Δy = ({format_length(optical_params.wavelength_m)} × {L_m:.2f} m) / ({n:.3f} × {d_mm:.3f} mm) = {format_length(dy_m)}"
             )
 
             # --- Formula 4: Fraunhofer Diffraction & Missing Orders ---
@@ -262,13 +263,13 @@ class DocxEquationExporter:
                 '<m:r><m:t> · </m:t></m:r>'
                 '<m:sSup><m:e><m:d><m:r><m:t>cos(α)</m:t></m:r></m:d></m:e><m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup>'
             )
-            env_mm = features.get("central_envelope_width_mm", 0.0)
+            env_m = features.get("central_envelope_width_m", 0.0)
             ratio = d_mm / max(a_mm, 1e-4)
             miss = features.get("missing_orders", [])
             miss_txt = "m = ±" + ", ±".join([str(abs(m)) for m in miss if m > 0][:4]) if miss else ("None" if not is_persian else "هیچ")
             title_4 = "D. Fraunhofer Diffraction Envelope & Missing Orders" if not is_persian else "د. پوش پراش فرانهوفر و مراتب تداخلی غایب"
             narr_4 = "The physical double-slit pattern is modulated by the single-slit diffraction envelope. Missing orders occur when d/a equals the ratio of orders." if not is_persian else "طرح تداخلی دو شکاف توسط پوش پراش تک‌شکاف تعدیل می‌شود. مراتب غایب زمانی رخ می‌دهند که نسبت d/a برابر نسبت مرتبه‌ها گردد."
-            sub_4 = f"Central Envelope Width W = 2λL/a = {env_mm:.2f} mm | Ratio d/a = {ratio:.2f} => Missing Orders: {miss_txt}" if not is_persian else f"پهنای پوش مرکزی W = 2λL/a = {env_mm:.2f} mm | نسبت d/a = {ratio:.2f} => مراتب غایب: {miss_txt}"
+            sub_4 = f"Central Envelope Width W = 2λL/a = {format_length(env_m)} | Ratio d/a = {ratio:.2f} => Missing Orders: {miss_txt}" if not is_persian else f"پهنای پوش مرکزی W = 2λL/a = {format_length(env_m)} | نسبت d/a = {ratio:.2f} => مراتب غایب: {miss_txt}"
             add_equation_section(
                 title=title_4,
                 narrative=narr_4,
@@ -277,18 +278,23 @@ class DocxEquationExporter:
             )
 
             # --- Formula 5: De Broglie Matter Waves ---
+            # Universal OMML core only — per-particle detail lives in the
+            # substitution line (m·E_k form is wrong for photons and C60)
             omml_5 = (
                 '<m:sSub><m:e><m:r><m:t>λ</m:t></m:r></m:e><m:sub><m:r><m:t>dB</m:t></m:r></m:sub></m:sSub>'
                 '<m:r><m:t> = </m:t></m:r>'
                 '<m:f><m:num><m:r><m:t>h</m:t></m:r></m:num><m:den><m:r><m:t>p</m:t></m:r></m:den></m:f>'
-                '<m:r><m:t> = </m:t></m:r>'
-                '<m:f><m:num><m:r><m:t>h</m:t></m:r></m:num><m:den><m:rad><m:radPr/><m:e><m:r><m:t>2 · m · E</m:t></m:r><m:sSub><m:e><m:r><m:t></m:t></m:r></m:e><m:sub><m:r><m:t>k</m:t></m:r></m:sub></m:sSub></m:e></m:rad></m:den></m:f>'
             )
-            q_info = "Matter Wave: Photons, Relativistic Electrons, or Buckyballs" if not is_persian else "موج مادی: فوتون‌ها، الکترون‌های نسبیتی یا باکی‌بال‌ها"
+            q_info = "Matter Wave: Photon hc/E | Relativistic Electron h/p | Buckyball h/(M·v)" if not is_persian else "موج مادی: فوتون hc/E | الکترون نسبیتی h/p | باکی‌بال h/(M·v)"
             if quantum_engine:
                 p_name = quantum_engine.particle.name_en if not is_persian else quantum_engine.particle.name_fa
-                q_wl = quantum_engine.optical_params.wavelength_m
-                q_info = f"{p_name} | Energy = {quantum_engine.energy_ev:.1f} eV => λ_dB = {q_wl*1e9:.4f} nm"
+                q_info = de_broglie_substitution(
+                    quantum_engine.particle.category,
+                    p_name,
+                    quantum_engine.energy_ev,
+                    quantum_engine.velocity_ms,
+                    quantum_engine.optical_params.wavelength_m
+                )
             title_5 = "E. Quantum Mechanics & De Broglie Matter Waves" if not is_persian else "هـ. مکانیک کوانتومی و رابطه امواج مادی دوبروی"
             narr_5 = "Every quantum particle with momentum p possesses an intrinsic wave nature governing probability amplitude distribution across the slits." if not is_persian else "هر ذره مادی کوانتومی با تکانه p دارای ماهیت موجی ذاتی است که توزیع دامنه احتمال حضور در شکاف‌ها را تعیین می‌نماید."
             add_equation_section(
@@ -322,7 +328,8 @@ class DocxEquationExporter:
             # 4. Point Inspector Evaluation at Coordinate y
             # ------------------------------------------------------------------
             doc.add_page_break()
-            h_insp_text = f"3. Interactive Point Inspector (Evaluation at y = {inspector_y_mm:.2f} mm)" if not is_persian else f"۳. کاوشگر نقطه‌ای روی پرده (محاسبه در مکان y = {inspector_y_mm:.2f} mm)"
+            insp_pos_str = format_length(inspector_y_mm * 1e-3)
+            h_insp_text = f"3. Interactive Point Inspector (Evaluation at y = {insp_pos_str})" if not is_persian else f"۳. کاوشگر نقطه‌ای روی پرده (محاسبه در مکان y = {insp_pos_str})"
             h_insp = doc.add_heading(h_insp_text, level=2)
             h_insp.runs[0].font.color.rgb = col_primary
             if is_persian:
@@ -349,7 +356,7 @@ class DocxEquationExporter:
 
             if not is_persian:
                 insp_data = [
-                    ("Inspection Screen Coordinate (y)", f"{inspector_y_mm:.3f} mm ({y_m:.6e} m)"),
+                    ("Inspection Screen Coordinate (y)", f"{format_length(y_m)} ({y_m:.6e} m)"),
                     ("Ray Path Length r₁ (From Slit 1)", f"{r1:.6f} m"),
                     ("Ray Path Length r₂ (From Slit 2)", f"{r2:.6f} m"),
                     ("Exact Path Difference (Δr)", f"{dr_exact_nm:.2f} nm"),
@@ -359,7 +366,7 @@ class DocxEquationExporter:
                 ]
             else:
                 insp_data = [
-                    ("مختصات بازرسی روی پرده (y)", f"{inspector_y_mm:.3f} mm ({y_m:.6e} m)"),
+                    ("مختصات بازرسی روی پرده (y)", f"{format_length(y_m)} ({y_m:.6e} m)"),
                     ("طول مسیر پرتو r₁ (از شکاف ۱)", f"{r1:.6f} m"),
                     ("طول مسیر پرتو r₂ (از شکاف ۲)", f"{r2:.6f} m"),
                     ("اختلاف راه دقیق هندسی (Δr)", f"{dr_exact_nm:.2f} nm"),

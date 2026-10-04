@@ -224,12 +224,19 @@ function renderHistorySlide(index) {
         captionEl.textContent = isFa ? (fig.caption_fa || '') : (fig.caption_en || '');
 
         try {
-            if (fig.kind === 'photo' && fig.file) {
-                const img = document.createElement('img');
-                img.src = `/assets/images/history/${fig.file}`;
-                img.alt = fig.file;
-                img.className = 'photo-preview';
-                mediaWrapper.appendChild(img);
+            if (fig.kind === 'photo' && (fig.files?.length || fig.file)) {
+                const files = (fig.files && fig.files.length) ? fig.files : [fig.file];
+                const grid = document.createElement('div');
+                grid.className = files.length > 1 ? 'photo-grid' : 'photo-single';
+                for (const fname of files) {
+                    if (!fname) continue;
+                    const img = document.createElement('img');
+                    img.src = `/assets/images/history/${encodeURIComponent(fname)}`;
+                    img.alt = fname;
+                    img.className = 'photo-preview';
+                    grid.appendChild(img);
+                }
+                mediaWrapper.appendChild(grid);
             } else if (fig.kind === 'duel') {
                 const cv = createVisualCanvas();
                 mediaWrapper.appendChild(cv);

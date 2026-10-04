@@ -13,6 +13,7 @@ from PIL import Image, ImageTk
 from utils.color_utils import ColorUtils
 from utils.localization import LocalizationService, RLM
 from utils.font_manager import FontManager
+from utils.units import choose_length_scale, format_length
 
 class Screen2DView(ctk.CTkFrame):
     """
@@ -125,10 +126,12 @@ class Screen2DView(ctk.CTkFrame):
             0, 0, self.canvas_width, self.canvas_height,
             fill="#080808", outline=""
         )
-        self._draw_ruler(span_mm=self.current_span_y_m * 1000.0)
+        self._draw_ruler(span_m=self.current_span_y_m)
 
-    def _draw_ruler(self, span_mm: float):
-        """Draws physical millimeter ruler ticks and labels along the bottom of the screen."""
+    def _draw_ruler(self, span_m: float):
+        """Draws physical ruler ticks/labels along the bottom, with a unit
+        chosen from the span (mm / µm / nm / pm) so matter-wave screens stay
+        readable."""
         y_ruler = self.canvas_height - 18
         # Center line
         mid_x = self.canvas_width // 2
@@ -137,13 +140,15 @@ class Screen2DView(ctk.CTkFrame):
         self.canvas.create_line(15, y_ruler, self.canvas_width - 15, y_ruler, fill="#444444", width=1)
 
         # Major ticks (-half, 0, +half)
-        half_span = span_mm / 2.0
+        half_m = span_m / 2.0
+        scale, unit = choose_length_scale(half_m)
+        half = half_m * scale
         ticks = [
-            (mid_x, "0 mm", True),
-            (25, f"-{half_span:.1f} mm", False),
-            (self.canvas_width - 25, f"+{half_span:.1f} mm", False),
-            (mid_x - self.canvas_width // 4, f"-{half_span/2:.1f} mm", False),
-            (mid_x + self.canvas_width // 4, f"+{half_span/2:.1f} mm", False),
+            (mid_x, f"0 {unit}", True),
+            (25, f"-{half:.2f} {unit}", False),
+            (self.canvas_width - 25, f"+{half:.2f} {unit}", False),
+            (mid_x - self.canvas_width // 4, f"-{half/2:.2f} {unit}", False),
+            (mid_x + self.canvas_width // 4, f"+{half/2:.2f} {unit}", False),
         ]
 
         for x_pos, label, is_center in ticks:
@@ -186,10 +191,10 @@ class Screen2DView(ctk.CTkFrame):
 
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, anchor="nw", image=self.tk_image)
-        self._draw_ruler(span_mm=span_y_m * 1000.0)
+        self._draw_ruler(span_m=span_y_m)
 
         self.info_label.configure(
-            text=f"Classical Field | Span: ±{span_y_m * 500.0:.2f} mm"
+            text=f"Classical Field | Span: ±{format_length(span_y_m / 2.0)}"
         )
 
     def add_quantum_hits(
@@ -254,10 +259,10 @@ class Screen2DView(ctk.CTkFrame):
 
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, anchor="nw", image=self.tk_image)
-        self._draw_ruler(span_mm=span_y_m * 1000.0)
+        self._draw_ruler(span_m=span_y_m)
 
         self.info_label.configure(
-            text=f"Quantum Impacts: {total_hits:,} | Span: ±{span_y_m * 500.0:.2f} mm"
+            text=f"Quantum Impacts: {total_hits:,} | Span: ±{format_length(span_y_m / 2.0)}"
         )
 
     def clear_quantum_screen(self):

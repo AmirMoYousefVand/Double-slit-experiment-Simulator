@@ -28,6 +28,8 @@ from utils.obj_exporter import ObjExporter
 from utils.docx_exporter import DocxEquationExporter
 from utils.font_manager import FontManager
 from utils.localization import LocalizationService
+from utils.units import format_length, choose_length_scale
+from physics.particle_types import de_broglie_formula, de_broglie_substitution
 
 class ExportService:
     """Coordinates all scientific data, 3D model, document, and image export pipelines."""
@@ -63,16 +65,16 @@ class ExportService:
                 writer.writerow(["# Thomas Young Double-Slit Experiment Simulation Dataset"])
                 writer.writerow(["# Software: Comprehensive Classical & Quantum Double-Slit Simulator v2.0"])
                 writer.writerow([f"# Simulation Mode: {params_dict.get('simulation_mode', 'classical').capitalize()}"])
-                writer.writerow([f"# Vacuum Wavelength (lambda_0): {wl_vac:.6e} m ({wl_vac*1e9:.2f} nm)"])
+                writer.writerow([f"# Vacuum Wavelength (lambda_0): {wl_vac:.6e} m ({format_length(wl_vac)})"])
                 writer.writerow([f"# Medium Refractive Index (n): {n:.4f}"])
-                writer.writerow([f"# Medium Wavelength (lambda_med): {wl_med:.6e} m ({wl_med*1e9:.2f} nm)"])
+                writer.writerow([f"# Medium Wavelength (lambda_med): {wl_med:.6e} m ({format_length(wl_med)})"])
                 writer.writerow([f"# Slit Separation (d): {d:.6e} m ({d*1000.0:.4f} mm)"])
                 writer.writerow([f"# Slit Aperture Width (a): {a:.6e} m ({a*1000.0:.4f} mm)"])
                 writer.writerow([f"# Slit-to-Screen Distance (L): {L:.4f} m"])
                 writer.writerow([f"# Slit Geometry Ratio (d/a): {d/max(a, 1e-7):.4f}"])
-                writer.writerow([f"# Theoretical Fringe Spacing (Delta_y): {stats_dict.get('fringe_spacing_dy_m', 0.0):.6e} m ({stats_dict.get('fringe_spacing_dy_mm', 0.0):.4f} mm)"])
+                writer.writerow([f"# Theoretical Fringe Spacing (Delta_y): {stats_dict.get('fringe_spacing_dy_m', 0.0):.6e} m ({format_length(stats_dict.get('fringe_spacing_dy_m', 0.0))})"])
                 writer.writerow([f"# Angular Separation (theta): {stats_dict.get('angular_separation_rad', 0.0):.6e} rad ({stats_dict.get('angular_separation_rad', 0.0)*1000.0:.4f} mrad)"])
-                writer.writerow([f"# Central Envelope Width: {stats_dict.get('central_envelope_width_mm', 0.0):.4f} mm"])
+                writer.writerow([f"# Central Envelope Width: {stats_dict.get('central_envelope_width_m', 0.0):.6e} m ({format_length(stats_dict.get('central_envelope_width_m', 0.0))})"])
                 writer.writerow([f"# Missing Interference Orders: {stats_dict.get('missing_orders', 'None')}"])
                 writer.writerow([f"# Michelson Fringe Visibility (V): {stats_dict.get('visibility', 1.0):.4f}"])
                 writer.writerow([f"# Which-Way Observer Active: {params_dict.get('which_way_observer_active', False)}"])
@@ -153,7 +155,7 @@ class ExportService:
                     row = [
                         i,
                         f"{y_m:.6e}",
-                        f"{y_mm:.4f}",
+                        f"{y_mm:.6e}",
                         f"{th_rad:.6e}",
                         f"{th_mrad:.4f}",
                         f"{r1:.6f}",
@@ -216,15 +218,17 @@ class ExportService:
             y_ruler = h - 35
             draw.line([(30, y_ruler), (w - 30, y_ruler)], fill=(120, 120, 120), width=2)
 
-            half_span_mm = span_y_m * 500.0
+            half_span_m = span_y_m / 2.0
+            scale, unit = choose_length_scale(half_span_m)
+            half_disp = half_span_m * scale
             mid_x = w // 2
 
             ticks = [
-                (mid_x, "0.0 mm", True),
-                (mid_x - w // 4, f"-{half_span_mm/2:.1f} mm", False),
-                (mid_x + w // 4, f"+{half_span_mm/2:.1f} mm", False),
-                (60, f"-{half_span_mm:.1f} mm", False),
-                (w - 100, f"+{half_span_mm:.1f} mm", False),
+                (mid_x, f"0.0 {unit}", True),
+                (mid_x - w // 4, f"-{half_disp/2:.2f} {unit}", False),
+                (mid_x + w // 4, f"+{half_disp/2:.2f} {unit}", False),
+                (60, f"-{half_disp:.2f} {unit}", False),
+                (w - 100, f"+{half_disp:.2f} {unit}", False),
             ]
 
             for x_pos, label, is_center in ticks:
@@ -244,7 +248,8 @@ class ExportService:
         optical_params: Any,
         features: Dict[str, Any],
         inspector_y_mm: float = 0.0,
-        is_persian: bool = False
+        is_persian: bool = False,
+        quantum_engine: Any = None
     ) -> Dict[str, Any]:
         """
         Renders complete mathematical derivations and Point Inspector summary into a publication image.
@@ -270,8 +275,26 @@ class ExportService:
             a_mm = optical_params.slit_width_a_m * 1000.0
             L_m = optical_params.screen_distance_L_m
             n = optical_params.refractive_index_n
-            dy_mm = features.get("fringe_spacing_dy_mm", 0.0)
-            env_mm = features.get("central_envelope_width_mm", 0.0)
+            dy_str = format_length(features.get("fringe_spacing_dy_m", 0.0))
+            env_str = format_length(features.get("central_envelope_width_m", 0.0))
+
+            # De Broglie equation block — per-particle when a quantum engine is
+            # supplied, generic λ_dB = h/p otherwise (universally correct)
+            if quantum_engine is not None:
+                _cat = quantum_engine.particle.category
+                _q_name = quantum_engine.particle.name_fa if is_persian else quantum_engine.particle.name_en
+                db_formula = de_broglie_formula(_cat)["mathtext"]
+                db_sub = de_broglie_substitution(
+                    _cat, _q_name, quantum_engine.energy_ev,
+                    quantum_engine.velocity_ms, quantum_engine.optical_params.wavelength_m
+                )
+                if is_persian:
+                    db_sub = LocalizationService.reshape_text(db_sub)
+            else:
+                db_formula = r"$\lambda_{dB} = \frac{h}{p}$"
+                db_sub = (LocalizationService.reshape_text("پراکندگی نسبیتی برای الکترون‌ها، فوتون‌ها و باکی‌بال‌ها")
+                          if is_persian else
+                          r"Photon hc/E | Relativistic electron h/p | Buckyball h/(M·v)")
 
             # Equations blocks with bilingual support
             if not is_persian:
@@ -279,11 +302,10 @@ class ExportService:
                     ("1. Optical Path Difference:", r"$\Delta r = r_2 - r_1 = d \sin\theta \approx d \frac{y}{L}$",
                      f"Δr = ({d_mm:.3f} mm) × sin(θ) ≈ {d_mm:.3f} mm × (y / {L_m:.2f} m)"),
                     ("2. Interference Fringes:", r"$y_m = m \frac{\lambda L}{n \cdot d}, \quad y'_m = \left(m + \frac{1}{2}\right) \frac{\lambda L}{n \cdot d}$",
-                     f"Fringe Spacing Δy = {dy_mm:.3f} mm | Central Max y₀ = 0.00 mm | Order 1: ±{dy_mm:.3f} mm"),
+                     f"Fringe Spacing Δy = {dy_str} | Central Max y₀ = 0 | Order 1: ±{dy_str}"),
                     ("3. Combined Fraunhofer Intensity:", r"$I(y) = I_0 \left[\frac{\sin(\beta)}{\beta}\right]^2 \cos^2(\alpha), \quad \beta = \frac{\pi a}{\lambda}\sin\theta, \quad \alpha = \frac{\pi d}{\lambda}\sin\theta$",
-                     f"Central Envelope Width W = 2λL/a = {env_mm:.2f} mm | Slit Ratio d/a = {d_mm/max(a_mm, 1e-4):.2f}"),
-                    ("4. De Broglie Matter Waves:", r"$\lambda_{dB} = \frac{h}{p} = \frac{h}{\sqrt{2 m_e E_k \left(1 + \frac{E_k}{2 m_e c^2}\right)}}$",
-                     r"Relativistic dispersion for electrons, photons ($hc/E$), and $C_{60}$ buckyballs"),
+                     f"Central Envelope Width W = 2λL/a = {env_str} | Slit Ratio d/a = {d_mm/max(a_mm, 1e-4):.2f}"),
+                    ("4. De Broglie Matter Waves:", db_formula, db_sub),
                     ("5. Quantum Superposition vs Collapse:", r"$P_{\text{coherent}}(y) = |\Psi_1 + \Psi_2|^2, \quad P_{\text{collapsed}}(y) = \frac{1}{2}|\Psi_1|^2 + \frac{1}{2}|\Psi_2|^2$",
                      "Detector OFF: Coherent Interference (V = 1.0) | Detector ON: Wavefunction Collapse (V = 0.0)"),
                 ]
@@ -292,11 +314,10 @@ class ExportService:
                     (LocalizationService.reshape_text("۱. اختلاف راه نوری و هندسه آزمایش:"), r"$\Delta r = r_2 - r_1 = d \sin\theta \approx d \frac{y}{L}$",
                      f"Δr = ({d_mm:.3f} mm) × sin(θ) ≈ {d_mm:.3f} mm × (y / {L_m:.2f} m)"),
                     (LocalizationService.reshape_text("۲. شرایط تداخل بیشینه‌ها و کمینه‌ها:"), r"$y_m = m \frac{\lambda L}{n \cdot d}, \quad y'_m = \left(m + \frac{1}{2}\right) \frac{\lambda L}{n \cdot d}$",
-                     LocalizationService.reshape_text(f"فاصله فرانژها Δy = {dy_mm:.3f} mm | بیشینه مرکزی: 0.00 mm | مرتبه اول: ±{dy_mm:.3f} mm")),
+                     LocalizationService.reshape_text(f"فاصله فرانژها Δy = {dy_str} | بیشینه مرکزی: 0 | مرتبه اول: ±{dy_str}")),
                     (LocalizationService.reshape_text("۳. شدت ترکیبی تداخل و پوش فرانهوفر:"), r"$I(y) = I_0 \left[\frac{\sin(\beta)}{\beta}\right]^2 \cos^2(\alpha), \quad \beta = \frac{\pi a}{\lambda}\sin\theta, \quad \alpha = \frac{\pi d}{\lambda}\sin\theta$",
-                     LocalizationService.reshape_text(f"پهنای پوش مرکزی W = 2λL/a = {env_mm:.2f} mm | نسبت d/a = {d_mm/max(a_mm, 1e-4):.2f}")),
-                    (LocalizationService.reshape_text("۴. امواج مادی دوبروی در مکانیک کوانتومی:"), r"$\lambda_{dB} = \frac{h}{p} = \frac{h}{\sqrt{2 m_e E_k \left(1 + \frac{E_k}{2 m_e c^2}\right)}}$",
-                     LocalizationService.reshape_text("پراکندگی نسبیتی برای الکترون‌ها، فوتون‌ها و باکی‌بال‌ها")),
+                     LocalizationService.reshape_text(f"پهنای پوش مرکزی W = 2λL/a = {env_str} | نسبت d/a = {d_mm/max(a_mm, 1e-4):.2f}")),
+                    (LocalizationService.reshape_text("۴. امواج مادی دوبروی در مکانیک کوانتومی:"), db_formula, db_sub),
                     (LocalizationService.reshape_text("۵. برهم‌نهی کوانتومی در برابر فروپاشی (اثر ناظر):"), r"$P_{\text{coherent}}(y) = |\Psi_1 + \Psi_2|^2, \quad P_{\text{collapsed}}(y) = \frac{1}{2}|\Psi_1|^2 + \frac{1}{2}|\Psi_2|^2$",
                      LocalizationService.reshape_text("آشکارساز خاموش: تداخل همدوس (V = 1.0) | آشکارساز روشن: فروپاشی تابع موج (V = 0.0)")),
                 ]
@@ -318,7 +339,8 @@ class ExportService:
             dr_nm = abs(r2 - r1) * 1e9
             phase_deg = math.degrees(2.0 * math.pi * abs(r2 - r1) / optical_params.medium_wavelength_m) % 360.0
 
-            insp_title = f"Point Inspector Evaluation at y = {inspector_y_mm:.2f} mm" if not is_persian else LocalizationService.reshape_text(f"کاوشگر نقطه‌ای روی پرده در مکان y = {inspector_y_mm:.2f} mm")
+            insp_pos_str = format_length(inspector_y_mm * 1e-3)
+            insp_title = f"Point Inspector Evaluation at y = {insp_pos_str}" if not is_persian else LocalizationService.reshape_text(f"کاوشگر نقطه‌ای روی پرده در مکان y = {insp_pos_str}")
             ax.text(0.5, 0.18, insp_title, color="#FBBF24", fontsize=11, weight="bold", ha="center", fontproperties=fprop_head)
 
             if not is_persian:
@@ -595,7 +617,10 @@ class ExportService:
                 model_dir = os.path.join(tmp_dir, "apparatus_3d_model")
                 os.makedirs(model_dir, exist_ok=True)
                 wl_nm = optical_params.wavelength_m * 1e9
-                rgb = ColorUtils.wavelength_to_rgb(wl_nm)
+                if is_quantum and quantum_engine is not None:
+                    rgb = ColorUtils.get_particle_color(quantum_engine.particle.category, wl_nm)
+                else:
+                    rgb = ColorUtils.wavelength_to_rgb(wl_nm)
                 obj_path = os.path.join(model_dir, "apparatus_model.obj")
                 cls.export_3d_model(
                     filepath=obj_path,
@@ -641,7 +666,8 @@ class ExportService:
                     optical_params=optical_params,
                     features=features,
                     inspector_y_mm=inspector_y_mm,
-                    is_persian=is_persian
+                    is_persian=is_persian,
+                    quantum_engine=quantum_engine if is_quantum else None
                 )
 
                 # 5. Metadata JSON

@@ -850,7 +850,7 @@ class HistoryView(ctk.CTkScrollableFrame):
             )
             feats = eng.get_analytical_features()
             dy = feats.get("fringe_spacing_dy_m", 1e-3)
-            span = max(dy * 8, 0.004)
+            span = max(dy * 8.0, 1e-9)  # no mm floor: keep ~8 fringes even for extreme classical configs
             y = np.linspace(-span / 2, span / 2, 400)
             inten = eng.compute_intensity_profile(y)
             self._mpl_line.set_data(y * 1000.0, inten)
@@ -956,8 +956,9 @@ class HistoryView(ctk.CTkScrollableFrame):
 
     def _build_photo(self, fig: Dict[str, Any], is_fa: bool):
         from customtkinter import CTkImage
-        path = self._photo_path(fig.get("file", ""))
-        if path is None:
+        files = fig.get("files") or ([fig.get("file")] if fig.get("file") else [])
+        resolved = [(fname, p) for fname in files if (p := self._photo_path(fname)) is not None]
+        if not resolved:
             ph = ctk.CTkLabel(
                 self.fig_holder, text=LocalizationService.get("hist_photo_na"),
                 font=FontManager.get_persian_font(12, "bold") if is_fa else FontManager.get_number_font(12, "bold"),
@@ -968,17 +969,25 @@ class HistoryView(ctk.CTkScrollableFrame):
             self.caption_label.configure(text="")
             return
         try:
-            with Image.open(path) as im:
-                im = im.convert("RGB")
-                max_w = 720 if self.is_presentation_mode else 560
-                w = min(max_w, im.width)
-                h = int(im.height * (w / im.width))
-                h = min(h, 420 if self.is_presentation_mode else 300)
-                im = im.resize((w, h), Image.LANCZOS)
-                photo = CTkImage(light_image=im.copy(), dark_image=im.copy(), size=(w, h))
-                self._photo_refs.append(photo)
-            lbl = ctk.CTkLabel(self.fig_holder, text="", image=photo)
-            lbl.grid(row=0, column=0, pady=6)
+            n = len(resolved)
+            cols = 1 if n == 1 else 2
+            base_max_w = 720 if self.is_presentation_mode else 560
+            max_h = (420 if self.is_presentation_mode else 300) if n == 1 else (
+                200 if self.is_presentation_mode else 160)
+            per_img_max_w = base_max_w if n == 1 else int(base_max_w / cols)
+            for c in range(cols):
+                self.fig_holder.grid_columnconfigure(c, weight=1)
+            for i, (_fname, path) in enumerate(resolved):
+                with Image.open(path) as im:
+                    im = im.convert("RGB")
+                    w = min(per_img_max_w, im.width)
+                    h = int(im.height * (w / im.width))
+                    h = min(h, max_h)
+                    im = im.resize((w, h), Image.LANCZOS)
+                    photo = CTkImage(light_image=im.copy(), dark_image=im.copy(), size=(w, h))
+                    self._photo_refs.append(photo)
+                lbl = ctk.CTkLabel(self.fig_holder, text="", image=photo)
+                lbl.grid(row=i // cols, column=i % cols, padx=4, pady=6, sticky="n")
             cap = fig.get("caption_fa", "") if is_fa else fig.get("caption_en", "")
             self.caption_label.configure(text=cap)
         except Exception:

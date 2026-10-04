@@ -12,6 +12,7 @@ from config import (
     ELECTRON_MASS,
     BUCKYBALL_MASS
 )
+from utils.units import format_length
 
 class ParticleCategory(Enum):
     PHOTON = "photon"
@@ -114,3 +115,50 @@ PARTICLE_PRESETS = {
         description_fa="مولکول بزرگ ۷۲۰ واحد جرمی (آزمایش تاریخی تسایلینگر در سال ۱۹۹۹)."
     )
 }
+
+
+def de_broglie_formula(category: ParticleCategory) -> dict:
+    """Single source of truth for the de Broglie relation shown per particle.
+
+    Returns {"plain": <label text>, "mathtext": <matplotlib mathtext>}.
+    """
+    if category == ParticleCategory.PHOTON:
+        return {
+            "plain": "λ_dB = h / p = h·c / E",
+            "mathtext": r"$\lambda_{dB} = \frac{h}{p} = \frac{h c}{E}$",
+        }
+    if category == ParticleCategory.ELECTRON:
+        return {
+            "plain": "λ_dB = h / p = h / √(2·m_e·E_k·(1 + E_k/(2·m_e·c²)))",
+            "mathtext": r"$\lambda_{dB} = \frac{h}{p} = \frac{h}{\sqrt{2 m_e E_k\left(1+\frac{E_k}{2 m_e c^2}\right)}}$",
+        }
+    if category == ParticleCategory.BUCKYBALL:
+        return {
+            "plain": "λ_dB = h / p = h / (M·v)",
+            "mathtext": r"$\lambda_{dB} = \frac{h}{p} = \frac{h}{M v}$",
+        }
+    raise ValueError(f"Unknown particle category: {category}")
+
+
+def de_broglie_substitution(
+    category: ParticleCategory,
+    name_label: str,
+    energy_ev: float,
+    velocity_ms: float,
+    lambda_m: float,
+) -> str:
+    """Live numerical substitution line for the de Broglie relation.
+
+    C60 derives E_k from the actual velocity (½Mv²) — never from a stale
+    energy_ev that set_velocity does not update.
+    """
+    wl = format_length(lambda_m)
+    if category == ParticleCategory.PHOTON:
+        return f"{name_label} | E = {energy_ev:.2f} eV => λ_dB = h·c/E = {wl}"
+    if category == ParticleCategory.ELECTRON:
+        return f"{name_label} | E_k = {energy_ev:.1f} eV => λ_dB = {wl}"
+    if category == ParticleCategory.BUCKYBALL:
+        props = PARTICLE_PRESETS[category]
+        ek_ev = 0.5 * props.mass_kg * (velocity_ms ** 2) / ELEMENTARY_CHARGE
+        return f"{name_label} | v = {velocity_ms:.1f} m/s => E_k = ½Mv² = {ek_ev:.3f} eV => λ_dB = {wl}"
+    raise ValueError(f"Unknown particle category: {category}")

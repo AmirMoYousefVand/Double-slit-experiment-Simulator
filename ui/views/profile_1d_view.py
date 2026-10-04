@@ -15,6 +15,7 @@ from matplotlib.lines import Line2D
 
 from utils.localization import LocalizationService
 from utils.font_manager import FontManager
+from utils.units import choose_length_scale
 
 class Profile1DView(ctk.CTkFrame):
     """
@@ -28,6 +29,9 @@ class Profile1DView(ctk.CTkFrame):
         self.bins_count = 150
         self.is_quantum_active = False
         self.fill_poly = None
+        # Display scale for the x-axis: meters -> current unit (mm by default,
+        # recomputed from the span on every profile update)
+        self._y_scale, self._y_unit = 1000.0, "mm"
 
         self._create_figure()
         self.refresh_language()
@@ -89,7 +93,7 @@ class Profile1DView(ctk.CTkFrame):
         fprop_lbl = FontManager.get_mpl_persian_prop(10) if is_fa else FontManager.get_mpl_number_prop(10)
         fprop_leg = FontManager.get_mpl_persian_prop(8) if is_fa else FontManager.get_mpl_number_prop(8)
 
-        xlabel = LocalizationService.get_reshaped("plot_1d_xlabel")
+        xlabel = f"{LocalizationService.get_reshaped('plot_1d_xlabel_base')} ({self._y_unit})"
         ylabel = LocalizationService.get_reshaped("plot_1d_ylabel")
         self.ax.set_xlabel(xlabel, color="#E0E0E0", fontsize=10, fontproperties=fprop_lbl)
         self.ax.set_ylabel(ylabel, color="#E0E0E0", fontsize=10, fontproperties=fprop_lbl)
@@ -123,32 +127,39 @@ class Profile1DView(ctk.CTkFrame):
         Updates the theoretical curves, under-curve luminous fill, and analytical markers.
         Executes in under 1 ms using set_data without clearing the axes.
         """
-        y_mm = y_grid_m * 1000.0
+        # Choose display unit from the span (mm / µm / nm / pm)
+        half_m = abs(y_grid_m[-1]) if len(y_grid_m) else 0.02
+        self._y_scale, self._y_unit = choose_length_scale(half_m)
+        y_disp = y_grid_m * self._y_scale
+        # Keep the axis unit in sync when the span changes (font props persist)
+        self.ax.set_xlabel(
+            f"{LocalizationService.get_reshaped('plot_1d_xlabel_base')} ({self._y_unit})"
+        )
 
         # Update curve color to match laser wavelength
         self.line_theory.set_color(curve_hex_color)
-        self.line_theory.set_data(y_mm, intensity)
-        self.line_envelope.set_data(y_mm, envelope)
+        self.line_theory.set_data(y_disp, intensity)
+        self.line_envelope.set_data(y_disp, envelope)
 
         # Translucent luminous glow under interference curve
         if self.fill_poly is not None:
             self.fill_poly.remove()
             self.fill_poly = None
-        if len(y_mm) > 0 and len(intensity) > 0:
-            self.fill_poly = self.ax.fill_between(y_mm, 0, intensity, color=curve_hex_color, alpha=0.18, zorder=2)
+        if len(y_disp) > 0 and len(intensity) > 0:
+            self.fill_poly = self.ax.fill_between(y_disp, 0, intensity, color=curve_hex_color, alpha=0.18, zorder=2)
 
         # Update axis bounds smoothly
-        span_mm = (y_mm[-1] - y_mm[0]) / 2.0
-        self.ax.set_xlim(-span_mm, span_mm)
+        span_disp = (y_disp[-1] - y_disp[0]) / 2.0
+        self.ax.set_xlim(-span_disp, span_disp)
 
         # Update analytical peak markers if provided
         if analytical_features:
-            max_y = analytical_features.get("maxima_y_m", np.array([])) * 1000.0
+            max_y = analytical_features.get("maxima_y_m", np.array([])) * self._y_scale
             # Filter within current display window
-            valid_max = max_y[np.abs(max_y) <= span_mm]
+            valid_max = max_y[np.abs(max_y) <= span_disp]
             if len(valid_max) > 0:
                 # Interpolate intensity at peak positions
-                peak_int = np.interp(valid_max, y_mm, intensity)
+                peak_int = np.interp(valid_max, y_disp, intensity)
                 self.markers_max.set_data(valid_max, peak_int)
             else:
                 self.markers_max.set_data([], [])
@@ -182,11 +193,11 @@ class Profile1DView(ctk.CTkFrame):
         max_c = np.max(counts)
         norm_counts = (counts / max_c) if max_c > 0 else counts
 
-        # Bin centers in mm
-        bin_centers_mm = 0.5 * (bins[:-1] + bins[1:]) * 1000.0
+        # Bin centers in the current display unit (set by update_theoretical_profile)
+        bin_centers = 0.5 * (bins[:-1] + bins[1:]) * self._y_scale
 
         self.line_hist.set_color(particle_hex)
-        self.line_hist.set_data(bin_centers_mm, norm_counts)
+        self.line_hist.set_data(bin_centers, norm_counts)
         self.canvas.draw_idle()
 
     def clear_quantum_data(self):

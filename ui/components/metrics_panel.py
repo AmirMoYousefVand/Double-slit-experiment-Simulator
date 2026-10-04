@@ -10,6 +10,7 @@ import customtkinter as ctk
 
 from utils.localization import LocalizationService
 from utils.font_manager import FontManager
+from utils.units import format_length
 
 class MetricsPanel(ctk.CTkFrame):
     """
@@ -177,20 +178,19 @@ class MetricsPanel(ctk.CTkFrame):
         chi2_dict: Dict[str, float] | None = None
     ):
         """Updates all analytical readout tiles."""
-        # 1. Fringe Spacing Δy
-        dy_mm = features.get("fringe_spacing_dy_mm", 0.0)
-        if dy_mm < 0.1:
-            self.labels["fringe_spacing"].configure(text=f"Δy = {dy_mm * 1000.0:.2f} µm")
-        else:
-            self.labels["fringe_spacing"].configure(text=f"Δy = {dy_mm:.3f} mm")
+        # 1. Fringe Spacing Δy (unit-aware: mm / µm / nm / pm)
+        self.labels["fringe_spacing"].configure(
+            text=f"Δy = {format_length(features.get('fringe_spacing_dy_m', 0.0))}"
+        )
 
         # 2. Angular Separation θ
         theta_mrad = features.get("angular_separation_rad", 0.0) * 1000.0
         self.labels["angular_separation"].configure(text=f"θ = {theta_mrad:.3f} mrad")
 
         # 3. Central Envelope Width
-        env_mm = features.get("central_envelope_width_mm", 0.0)
-        self.labels["central_width"].configure(text=f"Width = {env_mm:.2f} mm")
+        self.labels["central_width"].configure(
+            text=f"Width = {format_length(features.get('central_envelope_width_m', 0.0))}"
+        )
 
         # 4. Visibility V
         v = features.get("visibility", 1.0)

@@ -371,3 +371,10 @@ class ControlPanel(ctk.CTkScrollableFrame):
         if key in self.sliders:
             self.sliders[key].set(value)
             self._handle_slider_change(key, value)
+
+    def get_parameter_value(self, key: str) -> float:
+        """Returns the current slider value for a parameter (source of truth
+        for classical settings while the control panel is hidden)."""
+        if key in self.sliders:
+            return float(self.sliders[key].get())
+        raise KeyError(f"Unknown parameter: {key}")

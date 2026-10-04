@@ -9,6 +9,7 @@ from typing import Callable, Optional, List
 import customtkinter as ctk
 
 from physics.particle_types import ParticleCategory, PARTICLE_PRESETS
+from config import PARAM_LIMITS
 from utils.localization import LocalizationService, RLM
 from utils.font_manager import FontManager
 from utils.numeric_input import parse_number, clamp_range
@@ -192,9 +193,12 @@ class QuantumPanel(ctk.CTkFrame):
 
         self.rate_slider = ctk.CTkSlider(
             rate_frame,
-            from_=1,
-            to=2000,
-            number_of_steps=199,
+            from_=PARAM_LIMITS["emission_rate"]["min"],
+            to=PARAM_LIMITS["emission_rate"]["max"],
+            number_of_steps=int(
+                (PARAM_LIMITS["emission_rate"]["max"] - PARAM_LIMITS["emission_rate"]["min"])
+                / PARAM_LIMITS["emission_rate"]["step"]
+            ),
             command=self._handle_rate_slider
         )
         self.rate_slider.set(200)
@@ -229,7 +233,7 @@ class QuantumPanel(ctk.CTkFrame):
 
         rate_range_label = ctk.CTkLabel(
             rate_entry_row,
-            text="[1 … 2000]",
+            text=f"[{PARAM_LIMITS['emission_rate']['min']:.0f} … {PARAM_LIMITS['emission_rate']['max']:.0f}]",
             font=FontManager.get_number_font(9),
             text_color="#71717A"
         )
@@ -438,6 +442,9 @@ class QuantumPanel(ctk.CTkFrame):
 
         self.current_category = cat
         self._update_energy_title()
+        # Notify the engine FIRST so set_particle resets defaults before any
+        # energy/velocity callback dispatches against the new category.
+        self.on_particle_change(self.current_category)
 
         if cat == ParticleCategory.PHOTON:
             self.energy_range = (1.5, 3.5, 2)
@@ -457,8 +464,6 @@ class QuantumPanel(ctk.CTkFrame):
             self.energy_slider.configure(from_=50.0, to=500.0, number_of_steps=90)
             self.energy_slider.set(200.0)
             self._handle_energy_slider(200.0)
-
-        self.on_particle_change(self.current_category)
 
     def _handle_energy_slider(self, val: float):
         """Updates readout, mirrors into entry field, and triggers callback."""
@@ -534,7 +539,9 @@ class QuantumPanel(ctk.CTkFrame):
             return
         self._syncing = True
         try:
-            int_rate = int(clamp_range(float(val), 1, 2000))
+            _rmin = PARAM_LIMITS["emission_rate"]["min"]
+            _rmax = PARAM_LIMITS["emission_rate"]["max"]
+            int_rate = int(clamp_range(float(val), _rmin, _rmax))
             self.rate_val_label.configure(text=f"{int_rate} parts/s")
             self.rate_entry.delete(0, "end")
             self.rate_entry.insert(0, str(int_rate))
@@ -551,12 +558,14 @@ class QuantumPanel(ctk.CTkFrame):
         if parsed is None:
             self.rate_entry.configure(border_color="#F59E0B")
             return
-        if live and not (1 <= parsed <= 2000):
+        _rmin = PARAM_LIMITS["emission_rate"]["min"]
+        _rmax = PARAM_LIMITS["emission_rate"]["max"]
+        if live and not (_rmin <= parsed <= _rmax):
             self.rate_entry.configure(border_color="#F59E0B")
             return
         self._syncing = True
         try:
-            int_rate = int(clamp_range(parsed, 1, 2000))
+            int_rate = int(clamp_range(parsed, _rmin, _rmax))
             self.rate_slider.set(int_rate)
             self.rate_entry.delete(0, "end")
             self.rate_entry.insert(0, str(int_rate))
