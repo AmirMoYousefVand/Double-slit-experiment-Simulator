@@ -336,7 +336,8 @@ const PhysicsAnimations = (function () {
             // 7. Telemetry HUD Bar at Top
             const orderM = deltaR / wlM;
             const nearM = Math.round(orderM);
-            let stateLabel = Math.abs(orderM - nearM) < 0.1 ? `[Max m=${nearM}]` : Math.abs(orderM - (nearM + 0.5)) < 0.1 ? '[Dark Min]' : '';
+            const fracM = orderM - Math.floor(orderM);
+            let stateLabel = Math.abs(orderM - nearM) < 0.1 ? `[Max m=${nearM}]` : Math.abs(fracM - 0.5) < 0.1 ? '[Dark Min]' : '';
             ctx.fillStyle = '#38BDF8';
             ctx.font = 'bold 12px Space Grotesk, Vazirmatn, sans-serif';
             ctx.fillText(`Δr = ${deltaRNm.toFixed(1)} nm  |  Phase = ${phaseDeg.toFixed(0)}°  ${stateLabel}`, 30, 24);
@@ -566,9 +567,10 @@ const PhysicsAnimations = (function () {
             const phaseDeg = (360.0 * deltaR / (wlNm * 1e-9)) % 360;
             const orderM = deltaR / (wlNm * 1e-9);
             const nearM = Math.round(orderM);
+            const fracM = orderM - Math.floor(orderM);
 
             const isMax = Math.abs(orderM - nearM) < 0.08;
-            const isMin = Math.abs(orderM - (nearM + 0.5)) < 0.08;
+            const isMin = Math.abs(fracM - 0.5) < 0.08;
             let statusText = isMax ? `✓ بیشینه روشن (مرتبه m=${nearM})` : isMin ? '✗ گره تاریک (کمینه)' : 'ناحیه میانی';
 
             // Point P pulsating spot

@@ -9,6 +9,7 @@ const ClassroomQuiz = (function () {
     let score = 0;
     let answered = 0;
     let isLocked = false;
+    let lastChosen = null;
     let currentLang = 'fa';
 
     function init(quizData, lang) {
@@ -17,18 +18,26 @@ const ClassroomQuiz = (function () {
         score = 0;
         answered = 0;
         isLocked = false;
+        lastChosen = null;
         currentLang = lang || 'fa';
     }
 
     function setLanguage(lang) {
         currentLang = lang;
-        renderQuestion(currentQIndex);
+        // keepLock=true: re-rendering in the other language must not unlock an
+        // already-answered question (that allowed the score to be double-counted).
+        renderQuestion(currentQIndex, true);
     }
 
-    function renderQuestion(qIndex) {
+    function renderQuestion(qIndex, keepLock) {
         if (!quizQuestions || quizQuestions.length === 0) return;
-        currentQIndex = Math.max(0, Math.min(quizQuestions.length - 1, qIndex));
-        isLocked = false;
+        const targetIndex = Math.max(0, Math.min(quizQuestions.length - 1, qIndex));
+        const preserve = Boolean(keepLock) && targetIndex === currentQIndex && isLocked;
+        currentQIndex = targetIndex;
+        if (!preserve) {
+            isLocked = false;
+            lastChosen = null;
+        }
 
         const q = quizQuestions[currentQIndex];
         const isFa = currentLang === 'fa';
@@ -60,6 +69,9 @@ const ClassroomQuiz = (function () {
 
         updateScoreBadge();
 
+        // Re-apply answered/locked visuals after a keepLock re-render
+        if (preserve) applyAnsweredVisuals();
+
         // Render KaTeX for any mathematical notations
         if (window.renderMathInElement) {
             window.renderMathInElement(document.getElementById('quiz-container-box'), {
@@ -72,15 +84,11 @@ const ClassroomQuiz = (function () {
         }
     }
 
-    function answerQuestion(chosenIndex) {
-        if (isLocked) return;
-        isLocked = true;
-        answered++;
-
+    function applyAnsweredVisuals() {
         const q = quizQuestions[currentQIndex];
         const isFa = currentLang === 'fa';
+        const chosenIndex = lastChosen;
         const isCorrect = chosenIndex === q.correct;
-        if (isCorrect) score++;
 
         const optionButtons = document.querySelectorAll('.quiz-opt-btn');
         optionButtons.forEach((btn, idx) => {
@@ -108,6 +116,18 @@ const ClassroomQuiz = (function () {
         }
 
         updateScoreBadge();
+    }
+
+    function answerQuestion(chosenIndex) {
+        if (isLocked) return;
+        isLocked = true;
+        lastChosen = chosenIndex;
+        answered++;
+
+        const q = quizQuestions[currentQIndex];
+        if (chosenIndex === q.correct) score++;
+
+        applyAnsweredVisuals();
     }
 
     function updateScoreBadge() {

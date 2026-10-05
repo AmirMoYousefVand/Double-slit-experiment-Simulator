@@ -42,6 +42,16 @@ document.addEventListener('DOMContentLoaded', () => {
         switchSection('history');
     }
 
+    // Keep browser Back/Forward in sync with the visible section.
+    // switchSection rewrites the same hash, which does not re-fire this event.
+    window.addEventListener('hashchange', () => {
+        const section = window.location.hash.replace('#', '');
+        if ((section === 'history' || section === 'guide' || section === 'lab')
+            && section !== currentSection) {
+            switchSection(section);
+        }
+    });
+
     // 4. Keyboard Shortcuts
     document.addEventListener('keydown', handleKeyboardShortcuts);
 
@@ -300,7 +310,7 @@ function renderHistorySlide(index) {
 
         diagramBox.style.display = 'none';
         quizBox.style.display = 'flex';
-        ClassroomQuiz.renderQuestion(qIndex);
+        ClassroomQuiz.renderQuestion(qIndex, true);
     }
 
     renderDots(totalSlides, currentSlideIndex, (i) => renderHistorySlide(i));
@@ -315,7 +325,7 @@ function createVisualCanvas() {
     const cv = document.createElement('canvas');
     cv.className = 'canvas-visual';
     cv.height = 360;
-    cv.title = currentLang === 'fa' ? 'برای بزرگ‌نمایی کلیک کنید ⛶' : 'Click to enlarge ⛶';
+    cv.title = currentLanguage === 'fa' ? 'برای بزرگ‌نمایی کلیک کنید ⛶' : 'Click to enlarge ⛶';
     cv.onclick = () => openDiagramLightbox();
     return cv;
 }
@@ -435,6 +445,16 @@ function renderGuideModule(index) {
     const mediaWrapper = document.getElementById('diagram-media-wrapper');
     diagramBox.style.display = 'flex';
     mediaWrapper.innerHTML = PhysicsAnimations.renderRayTracingSVG(45 + currentGuideIndex * 5);
+    const guideCaptionEl = document.getElementById('diagram-caption-text');
+    if (guideCaptionEl) {
+        guideCaptionEl.textContent = isFa ? (mod.title_fa || '') : (mod.title_en || '');
+    }
+    const guideSvg = mediaWrapper.querySelector('svg');
+    if (guideSvg) {
+        guideSvg.style.cursor = 'zoom-in';
+        guideSvg.title = isFa ? 'برای بزرگ‌نمایی کلیک کنید ⛶' : 'Click to enlarge ⛶';
+        guideSvg.onclick = () => openDiagramLightbox();
+    }
 
     renderDots(modules.length, currentGuideIndex, (i) => renderGuideModule(i));
     triggerMathRendering();
@@ -461,6 +481,9 @@ function renderDots(total, current, onSelect) {
 }
 
 function nextSlide() {
+    if (currentSection === 'lab') return;
+    const lightbox = document.getElementById('diagram-lightbox');
+    if (lightbox && lightbox.style.display === 'flex') return;
     if (currentSection === 'guide') {
         renderGuideModule(currentGuideIndex + 1);
     } else {
@@ -469,11 +492,29 @@ function nextSlide() {
 }
 
 function prevSlide() {
+    if (currentSection === 'lab') return;
+    const lightbox = document.getElementById('diagram-lightbox');
+    if (lightbox && lightbox.style.display === 'flex') return;
     if (currentSection === 'guide') {
         renderGuideModule(currentGuideIndex - 1);
     } else {
         renderHistorySlide(currentSlideIndex - 1);
     }
+}
+
+/**
+ * Fringe spacing moved → derive wavelength λ = Δy·d/L (nm), clamp to the
+ * 380–780 nm band, then re-run the shared lab update.
+ */
+function updateLabSimulationFromDy() {
+    const dy = parseFloat(document.getElementById('slider-dy').value);
+    const d = parseFloat(document.getElementById('slider-d').value);
+    const L = parseFloat(document.getElementById('slider-l').value);
+    if (!(L > 0) || !(d > 0) || Number.isNaN(dy)) return;
+    let wl = (dy * d / L) * 1000.0;
+    wl = Math.min(780, Math.max(380, wl));
+    document.getElementById('slider-wl').value = wl;
+    updateLabSimulation();
 }
 
 /**
@@ -491,6 +532,21 @@ function updateLabSimulation() {
     document.getElementById('lab-val-l').textContent = `${L.toFixed(2)} m`;
 
     const dy = (wl * 1e-9 * L) / (d * 1e-3) * 1000.0;
+
+    // Keep the fringe-spacing slider bidirectionally in sync: its range maps
+    // the fixed 380–780 nm band onto the current d/L (step = 1 nm equivalent).
+    const sliderDy = document.getElementById('slider-dy');
+    if (sliderDy) {
+        const dyMin = ((380 * 1e-9 * L) / (d * 1e-3) * 1000.0);
+        const dyMax = ((780 * 1e-9 * L) / (d * 1e-3) * 1000.0);
+        sliderDy.min = dyMin.toFixed(6);
+        sliderDy.max = dyMax.toFixed(6);
+        sliderDy.step = Math.max((dyMax - dyMin) / 4000, 1e-9);
+        sliderDy.value = dy;
+        const valDy = document.getElementById('lab-val-dy');
+        if (valDy) valDy.textContent = `${dy.toFixed(4)} mm`;
+    }
+
     const theta1 = (wl * 1e-9 / (d * 1e-3)) * 1000.0;
     const missingRatio = d / a;
     let missingText = currentLanguage === 'fa' ? 'ندارد' : 'None';
@@ -576,6 +632,13 @@ function toggleLanguage() {
     document.getElementById('label-prev').textContent = isFa ? 'قبلی' : 'Previous';
     document.getElementById('label-next').textContent = isFa ? 'بعدی' : 'Next';
 
+    const fsLabel = document.getElementById('fs-label');
+    if (fsLabel) {
+        fsLabel.textContent = document.fullscreenElement
+            ? (isFa ? 'خروج' : 'Exit')
+            : (isFa ? 'تمام‌صفحه' : 'Fullscreen');
+    }
+
     ClassroomQuiz.setLanguage(currentLanguage);
 
     if (currentSection === 'guide') {
@@ -648,15 +711,20 @@ function openDiagramLightbox() {
             bodyEl.appendChild(clone);
         });
     } else {
-        const canvases = mediaWrapper.querySelectorAll('canvas');
-        if (canvases.length > 0) {
-            const src = canvases[0];
-            const clone = document.createElement('canvas');
-            clone.width = src.width || src.clientWidth || 800;
-            clone.height = src.height || src.clientHeight || 450;
-            const ctx = clone.getContext('2d');
-            ctx.drawImage(src, 0, 0);
-            bodyEl.appendChild(clone);
+        const svgs = mediaWrapper.querySelectorAll('svg');
+        if (svgs.length > 0) {
+            svgs.forEach(svg => bodyEl.appendChild(svg.cloneNode(true)));
+        } else {
+            const canvases = mediaWrapper.querySelectorAll('canvas');
+            if (canvases.length > 0) {
+                const src = canvases[0];
+                const clone = document.createElement('canvas');
+                clone.width = src.width || src.clientWidth || 800;
+                clone.height = src.height || src.clientHeight || 450;
+                const ctx = clone.getContext('2d');
+                ctx.drawImage(src, 0, 0);
+                bodyEl.appendChild(clone);
+            }
         }
     }
 
