@@ -55,7 +55,9 @@ class ExportService:
             n = params_dict.get("refractive_index_n", 1.0)
             wl_med = wl_vac / max(n, 1e-6)
 
-            with open(filepath, mode="w", newline="", encoding="utf-8") as csvfile:
+            # utf-8-sig: Excel on Windows decodes plain utf-8 as ANSI and would
+            # mangle µ in format_length() output (e.g. "µm" -> "Âµm")
+            with open(filepath, mode="w", newline="", encoding="utf-8-sig") as csvfile:
                 writer = csv.writer(csvfile)
 
                 # --------------------------------------------------------------
@@ -590,9 +592,15 @@ class ExportService:
         """
         try:
             with tempfile.TemporaryDirectory() as tmp_dir:
+                failures = []
+
+                def _check(label, result):
+                    if isinstance(result, dict) and not result.get("success", True):
+                        failures.append(f"{label}: {result.get('message', 'unknown error')}")
+
                 # 1. Scientific CSV Dataset
                 csv_path = os.path.join(tmp_dir, "simulation_data.csv")
-                cls.export_csv(
+                _check("CSV", cls.export_csv(
                     filepath=csv_path,
                     y_grid_m=y_grid_m,
                     intensity_theory=intensity_theory,
@@ -600,18 +608,18 @@ class ExportService:
                     params_dict=params_dict,
                     stats_dict=stats_dict,
                     total_hits=total_hits
-                )
+                ))
 
                 # 2. Word Lab Report
                 docx_path = os.path.join(tmp_dir, "laboratory_report.docx")
-                cls.export_word_report(
+                _check("Word report", cls.export_word_report(
                     filepath=docx_path,
                     optical_params=optical_params,
                     quantum_engine=quantum_engine,
                     features=features,
                     inspector_y_mm=inspector_y_mm,
                     is_persian=is_persian
-                )
+                ))
 
                 # 3. 3D Wavefront CAD Model folder
                 model_dir = os.path.join(tmp_dir, "apparatus_3d_model")
@@ -622,7 +630,7 @@ class ExportService:
                 else:
                     rgb = ColorUtils.wavelength_to_rgb(wl_nm)
                 obj_path = os.path.join(model_dir, "apparatus_model.obj")
-                cls.export_3d_model(
+                _check("3D model", cls.export_3d_model(
                     filepath=obj_path,
                     wavelength_nm=wl_nm,
                     slit_distance_mm=optical_params.slit_distance_d_m * 1000.0,
@@ -631,44 +639,51 @@ class ExportService:
                     which_way_active=which_way_active,
                     intensity_1d=intensity_theory,
                     base_rgb=rgb
-                )
+                ))
 
                 # 4. Publication Figures (300 DPI)
                 fig_dir = os.path.join(tmp_dir, "figures_300dpi")
                 os.makedirs(fig_dir, exist_ok=True)
                 if profile_1d_fig is not None:
-                    cls.export_figure(os.path.join(fig_dir, "1_profile_1d_intensity.png"), profile_1d_fig, dpi=300)
+                    _check("profile figure", cls.export_figure(os.path.join(fig_dir, "1_profile_1d_intensity.png"), profile_1d_fig, dpi=300))
                 if setup_3d_fig is not None:
-                    cls.export_figure(os.path.join(fig_dir, "2_apparatus_3d_setup.png"), setup_3d_fig, dpi=300)
+                    _check("3D figure", cls.export_figure(os.path.join(fig_dir, "2_apparatus_3d_setup.png"), setup_3d_fig, dpi=300))
 
                 span_y_m = params_dict.get("screen_span_y_m", 0.04)
-                cls.export_screen_image(
+                _check("2D screen image", cls.export_screen_image(
                     filepath=os.path.join(fig_dir, "3_detector_screen_2d.png"),
                     intensity_1d=intensity_theory,
                     base_rgb=rgb,
                     span_y_m=span_y_m,
                     quantum_buffer=screen_2d_quantum_buffer,
                     is_quantum=is_quantum
-                )
-                cls.export_schematic_image(
+                ))
+                _check("schematic image", cls.export_schematic_image(
                     filepath=os.path.join(fig_dir, "4_wave_propagation_schematic.png"),
                     wavelength_nm=wl_nm,
                     slit_distance_mm=optical_params.slit_distance_d_m * 1000.0,
                     slit_width_mm=optical_params.slit_width_a_m * 1000.0,
                     screen_distance_m=optical_params.screen_distance_L_m,
                     which_way_active=which_way_active,
+                    particle_category=quantum_engine.particle.category if is_quantum and quantum_engine is not None else None,
                     is_quantum=is_quantum,
                     target_y_offset=target_y_offset,
                     is_persian=is_persian
-                )
-                cls.export_calculations_image(
+                ))
+                _check("calculations image", cls.export_calculations_image(
                     filepath=os.path.join(fig_dir, "5_calculations_and_formulas.png"),
                     optical_params=optical_params,
                     features=features,
                     inspector_y_mm=inspector_y_mm,
                     is_persian=is_persian,
                     quantum_engine=quantum_engine if is_quantum else None
-                )
+                ))
+
+                # A sub-export failed -> report instead of zipping an
+                # incomplete bundle that would claim success.
+                if failures:
+                    return {"success": False,
+                            "message": "Lab Bundle incomplete — " + "; ".join(failures)}
 
                 # 5. Metadata JSON
                 meta = {

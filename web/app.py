@@ -90,6 +90,10 @@ def create_app() -> Flask:
         )
         engine = ClassicalEngine(opt)
         features = engine.get_analytical_features()
+        # jsonify cannot serialize numpy arrays (maxima_y_m, envelope_zeros_y_m)
+        for key, val in list(features.items()):
+            if hasattr(val, "tolist"):
+                features[key] = val.tolist()
         hex_col = ColorUtils.wavelength_to_hex(wl_nm)
 
         return jsonify({

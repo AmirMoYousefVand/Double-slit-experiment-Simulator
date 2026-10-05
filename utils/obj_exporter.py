@@ -133,7 +133,11 @@ class ObjExporter:
                 half_d = d_cad / 2.0
                 y_s1 = -half_d
                 y_s2 = +half_d
-                half_a = min(half_d * 0.35, 0.008 * L)
+                # Aperture opening derived from the physical slit width, using
+                # the same 0.2*L-per-mm visual scale as d_cad above and the
+                # same 0.1 mm visibility floor as the in-app 3D view.
+                a_visual_mm = max(float(slit_width_mm), 0.1)
+                half_a = min(a_visual_mm * 0.5 * (0.05 * L / 0.25), half_d * 0.8)
                 slit_h = 0.08 * L
                 t_bar = 0.006 * L
 
