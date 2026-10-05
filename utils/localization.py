@@ -62,6 +62,10 @@ class LocalizationService:
             "en": "Wavelength (λ):",
             "fa": f"{RLM}طول موج (λ):{RLM}"
         },
+        "fringe_spacing_param": {
+            "en": "Fringe Spacing (Δy):",
+            "fa": f"{RLM}فاصله نوارها (Δy):{RLM}"
+        },
         "slit_distance": {
             "en": "Slit Separation (d):",
             "fa": f"{RLM}فاصله دو شکاف (d):{RLM}"

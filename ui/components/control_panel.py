@@ -11,7 +11,8 @@ from config import PARAM_LIMITS, PARAM_DECIMALS, PRESETS
 from utils.color_utils import ColorUtils
 from utils.localization import LocalizationService, RLM
 from utils.font_manager import FontManager
-from utils.numeric_input import parse_number, clamp
+from utils.numeric_input import parse_number, clamp, clamp_range
+from physics.classical_engine import fringe_spacing_mm, wavelength_nm_from_fringe_spacing
 
 class ControlPanel(ctk.CTkScrollableFrame):
     """
@@ -44,10 +45,18 @@ class ControlPanel(ctk.CTkScrollableFrame):
         self.sliders: Dict[str, ctk.CTkSlider] = {}
         self.value_labels: Dict[str, ctk.CTkLabel] = {}
         self.param_title_labels: Dict[str, ctk.CTkLabel] = {}
+        self.range_labels: Dict[str, ctk.CTkLabel] = {}
         self.entries: Dict[str, ctk.CTkEntry] = {}
         self._syncing = False
+        # Exact (unquantized) parameter values: CTkSlider.set() snaps to the
+        # step grid (632.8 nm -> 633), so slider.get() must not be used as a
+        # source of truth for the Δy <-> λ conversion.
+        self._exact_values: Dict[str, float] = {
+            k: cfg["default"] for k, cfg in PARAM_LIMITS.items()
+        }
         self.units = {
             "wavelength_nm": "nm",
+            "fringe_spacing_mm": "mm",
             "slit_distance_mm": "mm",
             "slit_width_mm": "mm",
             "screen_distance_m": "m",
@@ -56,6 +65,7 @@ class ControlPanel(ctk.CTkScrollableFrame):
 
         self.slider_configs = [
             ("wavelength_nm", "wavelength"),
+            ("fringe_spacing_mm", "fringe_spacing_param"),
             ("slit_distance_mm", "slit_distance"),
             ("slit_width_mm", "slit_width"),
             ("screen_distance_m", "screen_distance"),
@@ -202,6 +212,7 @@ class ControlPanel(ctk.CTkScrollableFrame):
                 text_color="#71717A"
             )
             range_lbl.pack(side="right")
+            self.range_labels[param_key] = range_lbl
 
             row_idx += 1
 
@@ -216,6 +227,9 @@ class ControlPanel(ctk.CTkScrollableFrame):
             height=30
         )
         self.reset_btn.grid(row=row_idx, column=0, pady=(12, 5), sticky="ew")
+
+        # Derived Δy slider range must follow the current d / L / n values
+        self._refresh_fringe_spacing_slider()
 
     def refresh_language(self):
         """Refreshes text, fonts, presets, and packing alignment on language toggle."""
@@ -270,9 +284,9 @@ class ControlPanel(ctk.CTkScrollableFrame):
     @staticmethod
     def _format_value(key: str, value: float) -> str:
         """Formats a parameter readout with unit (header value label)."""
-        unit = {"wavelength_nm": "nm", "slit_distance_mm": "mm",
-                "slit_width_mm": "mm", "screen_distance_m": "m",
-                "refractive_index": ""}.get(key, "")
+        unit = {"wavelength_nm": "nm", "fringe_spacing_mm": "mm",
+                "slit_distance_mm": "mm", "slit_width_mm": "mm",
+                "screen_distance_m": "m", "refractive_index": ""}.get(key, "")
         decimals = PARAM_DECIMALS.get(key, 2)
         return f"{value:.{decimals}f} {unit}".strip()
 
@@ -286,9 +300,13 @@ class ControlPanel(ctk.CTkScrollableFrame):
         """Formats readout, mirrors into entry field, and triggers listener callback."""
         if self._syncing:
             return
+        if key == "fringe_spacing_mm":
+            self._handle_fringe_spacing_change(float(value))
+            return
         self._syncing = True
         try:
             value = clamp(key, float(value))
+            self._exact_values[key] = value
             self.value_labels[key].configure(text=self._format_value(key, value))
 
             if key in self.entries:
@@ -300,6 +318,9 @@ class ControlPanel(ctk.CTkScrollableFrame):
             if key == "wavelength_nm" and hasattr(self, "color_swatch"):
                 hex_col = ColorUtils.wavelength_to_hex(value)
                 self.color_swatch.configure(fg_color=hex_col)
+
+            if key in ("wavelength_nm", "slit_distance_mm", "screen_distance_m", "refractive_index"):
+                self._refresh_fringe_spacing_slider(current_wavelength=value if key == "wavelength_nm" else None)
 
             self.on_param_change(key, value)
         finally:
@@ -322,18 +343,54 @@ class ControlPanel(ctk.CTkScrollableFrame):
         if parsed is None:
             entry.configure(border_color="#F59E0B")
             return
-        cfg = PARAM_LIMITS.get(key, {})
-        in_range = (cfg.get("min", parsed) <= parsed <= cfg.get("max", parsed))
+        if key == "fringe_spacing_mm":
+            slider = self.sliders[key]
+            dyn_min = float(slider.cget("from_"))
+            dyn_max = float(slider.cget("to"))
+            in_range = dyn_min <= parsed <= dyn_max
+        else:
+            cfg = PARAM_LIMITS.get(key, {})
+            in_range = (cfg.get("min", parsed) <= parsed <= cfg.get("max", parsed))
         if live and not in_range:
             entry.configure(border_color="#F59E0B")
             return
         self._syncing = True
         try:
+            if key == "fringe_spacing_mm":
+                clamped = clamp_range(parsed, dyn_min, dyn_max)
+                d = self._exact_values["slit_distance_mm"]
+                L = self._exact_values["screen_distance_m"]
+                n = self._exact_values["refractive_index"]
+                lam = round(clamp("wavelength_nm", wavelength_nm_from_fringe_spacing(clamped, d, L, n)), 1)
+                actual_dy = fringe_spacing_mm(lam, d, L, n)
+                self._exact_values["fringe_spacing_mm"] = actual_dy
+                self._exact_values["wavelength_nm"] = lam
+
+                # Sync both widgets locally: the Δy entry must keep the user's
+                # in-progress text (no full refresh while typing).
+                self.sliders["fringe_spacing_mm"].set(actual_dy)
+                self.value_labels["fringe_spacing_mm"].configure(
+                    text=self._format_value("fringe_spacing_mm", actual_dy))
+                self.sliders["wavelength_nm"].set(lam)
+                self.value_labels["wavelength_nm"].configure(
+                    text=self._format_value("wavelength_nm", lam))
+                if hasattr(self, "color_swatch"):
+                    self.color_swatch.configure(fg_color=ColorUtils.wavelength_to_hex(lam))
+                if not live or abs(actual_dy - parsed) > 1e-9:
+                    entry.delete(0, "end")
+                    entry.insert(0, self._format_entry("fringe_spacing_mm", actual_dy))
+                entry.configure(border_color="#3F3F46")
+                self.on_param_change("wavelength_nm", lam)
+                return
+
             clamped = clamp(key, parsed)
+            self._exact_values[key] = clamped
             self.sliders[key].set(clamped)
             self.value_labels[key].configure(text=self._format_value(key, clamped))
             if key == "wavelength_nm" and hasattr(self, "color_swatch"):
                 self.color_swatch.configure(fg_color=ColorUtils.wavelength_to_hex(clamped))
+            if key in ("wavelength_nm", "slit_distance_mm", "screen_distance_m", "refractive_index"):
+                self._refresh_fringe_spacing_slider(current_wavelength=clamped if key == "wavelength_nm" else None)
             if not live or clamped != parsed:
                 entry.delete(0, "end")
                 entry.insert(0, self._format_entry(key, clamped))
@@ -341,6 +398,72 @@ class ControlPanel(ctk.CTkScrollableFrame):
             self.on_param_change(key, clamped)
         finally:
             self._syncing = False
+
+    def _handle_fringe_spacing_change(self, value: float):
+        """Δy moved: derive λ = Δy·n·d/L, sync widgets, propagate as a wavelength change."""
+        if self._syncing:
+            return
+        slider = self.sliders["fringe_spacing_mm"]
+        dyn_min = float(slider.cget("from_"))
+        dyn_max = float(slider.cget("to"))
+        value = clamp_range(value, dyn_min, dyn_max)
+        d = self._exact_values["slit_distance_mm"]
+        L = self._exact_values["screen_distance_m"]
+        n = self._exact_values["refractive_index"]
+        lam = round(clamp("wavelength_nm", wavelength_nm_from_fringe_spacing(value, d, L, n)), 1)
+        actual_dy = fringe_spacing_mm(lam, d, L, n)
+        self._exact_values["fringe_spacing_mm"] = actual_dy
+
+        self._syncing = True
+        try:
+            slider.set(actual_dy)
+            self.value_labels["fringe_spacing_mm"].configure(
+                text=self._format_value("fringe_spacing_mm", actual_dy))
+            if "fringe_spacing_mm" in self.entries:
+                entry = self.entries["fringe_spacing_mm"]
+                entry.delete(0, "end")
+                entry.insert(0, self._format_entry("fringe_spacing_mm", actual_dy))
+                entry.configure(border_color="#3F3F46")
+        finally:
+            self._syncing = False
+
+        # Delegate to the wavelength path: mirrors λ entry/swatch, fires
+        # on_param_change("wavelength_nm", …) and re-syncs the Δy range/value.
+        self._handle_slider_change("wavelength_nm", lam)
+
+    def _refresh_fringe_spacing_slider(self, current_wavelength: Optional[float] = None):
+        """Re-derives the Δy slider's range from d/L/n and its value from λ."""
+        key = "fringe_spacing_mm"
+        required = (key, "wavelength_nm", "slit_distance_mm", "screen_distance_m", "refractive_index")
+        if not all(k in self.sliders for k in required):
+            return
+        d = self._exact_values["slit_distance_mm"]
+        L = self._exact_values["screen_distance_m"]
+        n = self._exact_values["refractive_index"]
+        lam = self._exact_values["wavelength_nm"] if current_wavelength is None else current_wavelength
+        dyn_min = fringe_spacing_mm(PARAM_LIMITS["wavelength_nm"]["min"], d, L, n)
+        dyn_max = fringe_spacing_mm(PARAM_LIMITS["wavelength_nm"]["max"], d, L, n)
+        dy = fringe_spacing_mm(lam, d, L, n)
+        self._exact_values[key] = dy
+
+        prev = self._syncing
+        self._syncing = True
+        try:
+            slider = self.sliders[key]
+            steps = max(int(round((dyn_max - dyn_min) / PARAM_LIMITS[key]["step"])), 1)
+            slider.configure(from_=dyn_min, to=dyn_max, number_of_steps=steps)
+            slider.set(dy)
+            self.value_labels[key].configure(text=self._format_value(key, dy))
+            if key in self.range_labels:
+                self.range_labels[key].configure(
+                    text=f"[{self._format_entry(key, dyn_min)} … {self._format_entry(key, dyn_max)}]")
+            if key in self.entries:
+                entry = self.entries[key]
+                entry.delete(0, "end")
+                entry.insert(0, self._format_entry(key, dy))
+                entry.configure(border_color="#3F3F46")
+        finally:
+            self._syncing = prev
 
     def _handle_preset_select(self, chosen_label: str):
         """Applies chosen laboratory preset."""

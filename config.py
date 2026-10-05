@@ -31,6 +31,9 @@ DEFAULT_INTENSITY_I0 = 1.0          # Normalized peak intensity
 # Slider Ranges & Parameter Limits
 PARAM_LIMITS = {
     "wavelength_nm": {"min": 380.0, "max": 780.0, "step": 1.0, "default": 632.8},
+    # Derived parameter (Δy = λ·L/(n·d)); runtime range is recomputed by the
+    # control panel whenever d, L or n change — values below are at defaults.
+    "fringe_spacing_mm": {"min": 0.38, "max": 3.12, "step": 0.005, "default": 2.5312},
     "slit_distance_mm": {"min": 0.05, "max": 2.00, "step": 0.01, "default": 0.25},
     "slit_width_mm": {"min": 0.005, "max": 0.50, "step": 0.005, "default": 0.04},
     "screen_distance_m": {"min": 0.20, "max": 5.00, "step": 0.05, "default": 1.00},
@@ -41,6 +44,7 @@ PARAM_LIMITS = {
 # Display decimals for manual numeric entry fields (matches step precision)
 PARAM_DECIMALS = {
     "wavelength_nm": 1,
+    "fringe_spacing_mm": 4,
     "slit_distance_mm": 2,
     "slit_width_mm": 3,
     "screen_distance_m": 2,

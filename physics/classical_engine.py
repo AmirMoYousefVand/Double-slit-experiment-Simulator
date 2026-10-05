@@ -25,6 +25,28 @@ class OpticalParameters:
         return (2.0 * np.pi) / self.medium_wavelength_m
 
 
+def fringe_spacing_mm(wavelength_nm: float, slit_distance_mm: float,
+                      screen_distance_m: float, refractive_index: float = 1.0) -> float:
+    """Paraxial fringe spacing Δy in mm: Δy = λ·L/(n·d)."""
+    if slit_distance_mm <= 0 or screen_distance_m <= 0:
+        return 0.0
+    lambda_med_m = (wavelength_nm * 1e-9) / max(refractive_index, 1e-6)
+    d_m = slit_distance_mm * 1e-3
+    return (lambda_med_m * screen_distance_m / d_m) * 1000.0
+
+
+def wavelength_nm_from_fringe_spacing(dy_mm: float, slit_distance_mm: float,
+                                      screen_distance_m: float,
+                                      refractive_index: float = 1.0) -> float:
+    """Inverse of fringe_spacing_mm: λ = Δy·n·d/L (in nm)."""
+    if screen_distance_m <= 0 or slit_distance_mm <= 0:
+        return 0.0
+    n = max(refractive_index, 1e-6)
+    dy_m = dy_mm * 1e-3
+    d_m = slit_distance_mm * 1e-3
+    return (dy_m * n * d_m / screen_distance_m) * 1e9
+
+
 class ClassicalEngine:
     """
     Computes exact Fraunhofer double-slit interference modulated by
@@ -138,17 +160,18 @@ class ClassicalEngine:
         # Theoretical envelope zeros (single-slit diffraction minima):
         # a * sin(theta) = p * lambda (p != 0)
         envelope_zeros_y = []
-        for p_order in range(-max_order, max_order + 1):
-            if p_order == 0:
-                continue
-            sin_th = (p_order * lambda_med) / a
-            if abs(sin_th) < 0.999:
-                y = L * (sin_th / np.sqrt(1.0 - sin_th ** 2))
-                envelope_zeros_y.append(y)
+        if a > 0:
+            for p_order in range(-max_order, max_order + 1):
+                if p_order == 0:
+                    continue
+                sin_th = (p_order * lambda_med) / a
+                if abs(sin_th) < 0.999:
+                    y = L * (sin_th / np.sqrt(1.0 - sin_th ** 2))
+                    envelope_zeros_y.append(y)
 
         # Missing Orders Detection:
         # Occur when d / a = m / p => m = p * (d / a)
-        ratio = d / a
+        ratio = d / a if a > 0 else 0.0
         missing_orders = []
         nearest_ratio = round(ratio)
         if abs(ratio - nearest_ratio) < 0.04 and nearest_ratio >= 1:
