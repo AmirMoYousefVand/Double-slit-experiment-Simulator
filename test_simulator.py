@@ -1,21 +1,12 @@
 """
 Comprehensive Test and Verification Suite for Young's Double-Slit Simulator.
-Tests:
-1. Classical Fraunhofer optics and analytical features
-2. Missing order detection (d/a ratio)
-3. De Broglie wavelengths for photons, electrons, and macromolecules
-4. Quantum superposition vs Which-Way observer collapse
-5. High-speed Monte Carlo sampling performance
-6. Colorimetric Dan Bruton wavelength-to-sRGB mapping
-7. Enhanced 22-column CSV dataset export
-8. 3D Model Wavefront OBJ + MTL + Texture export
-9. Microsoft Word (.docx) lab report export with native OMML equations
-10. FontManager dynamic registration (Vazirmatn & Space Grotesk)
-11. 3D Laboratory Apparatus View (Setup3DView) with wheel zoom & rotation
-12. 2D Wave Propagation View (SetupSchematicView) with spectral color & Delta r
-13. Physical Calculations View & Point Inspector (CalculationsView)
-14. Strict bilingual separation check (Pure English in EN, proper RLM in FA)
-15. Full 5-Tab CustomTkinter GUI initialization and export callbacks
+34 tests covering: classical Fraunhofer optics and analytical features,
+missing-order detection, de Broglie wavelengths, observer collapse,
+Monte Carlo performance, wavelength color mapping, CSV / OBJ / DOCX / ZIP
+exports, FontManager, the 3D / schematic / calculations / history / guide
+views, strict bilingual purity, full GUI wiring, the Flask web presentation
+service, numeric-entry clamping, screen-span adaptation, slide navigation,
+and the bidirectional fringe-spacing ↔ wavelength conversion.
 """
 
 import sys
@@ -27,6 +18,11 @@ import numpy as np
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
+
+# Windows consoles default to cp1252/cp1256, which cannot encode λ/Δ/µ and
+# would crash the suite with UnicodeEncodeError on print.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from physics.particle_types import ParticleCategory, PARTICLE_PRESETS, de_broglie_formula
 from physics.classical_engine import OpticalParameters, ClassicalEngine
@@ -162,7 +158,8 @@ def test_enhanced_csv_export():
         assert res["success"] is True
         assert os.path.exists(csv_path)
 
-        with open(csv_path, "r", encoding="utf-8") as f:
+        # utf-8-sig strips the BOM that the exporter adds for Excel compatibility
+        with open(csv_path, "r", encoding="utf-8-sig") as f:
             lines = [line.strip() for line in f if line.strip() and not line.startswith("#")]
         header_cols = lines[0].split(",")
         assert len(header_cols) == 22, f"Expected 22 columns, got {len(header_cols)}: {header_cols}"
@@ -1083,9 +1080,30 @@ def test_photo_aspect_ratio_scaling():
     assert new_h <= max_h
     print("       -> Proportional photo aspect ratio scaling verified!")
 
+def test_fringe_spacing_roundtrip():
+    print("[34/34] Testing Bidirectional Fringe-Spacing <-> Wavelength Conversion...")
+    from physics.classical_engine import fringe_spacing_mm, wavelength_nm_from_fringe_spacing
+
+    # Defaults: λ=632.8 nm, d=0.25 mm, L=1 m, n=1 → Δy=2.5312 mm
+    dy = fringe_spacing_mm(632.8, 0.25, 1.0, 1.0)
+    assert abs(dy - 2.5312) < 1e-6, f"Δy mismatch: {dy}"
+    wl = wavelength_nm_from_fringe_spacing(dy, 0.25, 1.0, 1.0)
+    assert abs(wl - 632.8) < 1e-6, f"λ round-trip mismatch: {wl}"
+
+    # Non-unit refractive index must cancel out in the round-trip
+    dy_n = fringe_spacing_mm(532.0, 0.20, 1.5, 1.33)
+    wl_n = wavelength_nm_from_fringe_spacing(dy_n, 0.20, 1.5, 1.33)
+    assert abs(wl_n - 532.0) < 1e-6, f"n round-trip mismatch: {wl_n}"
+    assert dy_n < fringe_spacing_mm(532.0, 0.20, 1.5, 1.0), "n>1 must shrink Δy"
+
+    # Degenerate geometry guards
+    assert fringe_spacing_mm(632.8, 0.0, 1.0) == 0.0
+    assert wavelength_nm_from_fringe_spacing(1.0, 0.25, 0.0) == 0.0
+    print("       -> Δy <-> λ round-trip (with n and zero-division guards) verified!")
+
 if __name__ == "__main__":
     print("=" * 70)
-    print("RUNNING EXTENDED DOUBLE-SLIT SIMULATOR 33-TEST VERIFICATION SUITE")
+    print("RUNNING EXTENDED DOUBLE-SLIT SIMULATOR 34-TEST VERIFICATION SUITE")
     print("=" * 70)
 
     test_classical_optics()
@@ -1121,6 +1139,7 @@ if __name__ == "__main__":
     test_enlarged_figure_modal()
     test_guide_view_configure_redraw()
     test_photo_aspect_ratio_scaling()
+    test_fringe_spacing_roundtrip()
     print("=" * 70)
-    print("ALL 33 VERIFICATION TESTS PASSED SUCCESSFULLY! (100% PASS)")
+    print("ALL 34 VERIFICATION TESTS PASSED SUCCESSFULLY! (100% PASS)")
     print("=" * 70)

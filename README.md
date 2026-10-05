@@ -19,7 +19,7 @@ web presentation deck served by Flask.
 ### Classical Wave Optics
 - Exact Fraunhofer double-slit intensity distribution `I(θ) = I₀ cos²(β) sinc²(α)`
 - Live metrics: fringe spacing `Δy`, angular separation, maxima/minima angles, missing-order detection (`d/a` ratio)
-- Adjustable parameters: wavelength `λ` (380–780 nm), slit separation `d`, slit width `a`, screen distance `L`, refractive index `n`
+- Adjustable parameters: wavelength `λ` (380–780 nm), fringe spacing `Δy` (bidirectionally linked to λ via `Δy = λL/d` — moving either one updates the other live), slit separation `d`, slit width `a`, screen distance `L`, refractive index `n`
 - 6 laboratory presets: He-Ne Red, Argon-Ion Green, Violet Diode, Sodium D-Line, Underwater, High-Diffraction
 - Physically accurate color rendering (Dan Bruton wavelength → sRGB mapping)
 
