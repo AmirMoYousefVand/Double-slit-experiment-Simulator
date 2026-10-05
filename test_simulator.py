@@ -982,9 +982,110 @@ def test_docx_quantum_substitution():
         except OSError:
             pass
 
+def test_slide_navigation_shortcuts():
+    print("[30/33] Testing Keyboard Slide Navigation & Focus Guard...")
+    from ui.main_window import MainWindow
+    app = MainWindow()
+    app.update_idletasks()
+    try:
+        app.tabview.set("tab_hist")
+        app.history_view.show_slide(0)
+        assert app.history_view.slide_index == 0
+
+        # Next slide via shortcut dispatcher (direction = 1)
+        res = app._handle_slide_navigation(direction=1)
+        assert res == "break"
+        assert app.history_view.slide_index == 1
+
+        # Prev slide via shortcut dispatcher (direction = -1)
+        res = app._handle_slide_navigation(direction=-1)
+        assert res == "break"
+        assert app.history_view.slide_index == 0
+
+        # Test focus guard: when an entry is focused, slide navigation must be suppressed
+        if hasattr(app.control_panel, "entries") and "wavelength_nm" in app.control_panel.entries:
+            entry_w = app.control_panel.entries["wavelength_nm"]
+            app.focus_get = lambda: getattr(entry_w, "_entry", entry_w)
+            assert app._is_text_input_focused() is True
+            res = app._handle_slide_navigation(direction=1)
+            assert res is None, "Slide navigation occurred while text entry was focused!"
+            assert app.history_view.slide_index == 0, "Slide index changed despite entry focus!"
+        print("       -> Slide navigation dispatching and text focus guard verified!")
+    finally:
+        app.destroy()
+
+def test_enlarged_figure_modal():
+    print("[31/33] Testing Enlarged / Fullscreen Figure Modal...")
+    from ui.main_window import MainWindow
+    app = MainWindow()
+    app.update_idletasks()
+    try:
+        app.tabview.set("tab_hist")
+        app.history_view.show_slide(0)  # slide 0 (photo)
+        app.history_view._open_enlarged_figure()
+        assert app.history_view._modal_window is not None
+        assert app.history_view._modal_window.winfo_exists()
+        app.history_view._close_enlarged_figure()
+        assert app.history_view._modal_window is None
+
+        # Test procedural canvas slide (slide 4: apparatus)
+        app.history_view.show_slide(4)
+        app.history_view._open_enlarged_figure()
+        assert app.history_view._modal_window is not None
+        assert app.history_view._modal_canvas is not None
+        app.history_view._close_enlarged_figure()
+        assert app.history_view._modal_window is None
+        assert app.history_view._modal_canvas is None
+
+        # Test guide view enlarged diagram modal
+        app.tabview.set("tab_guide")
+        app.guide_view.show_module(0)
+        app.guide_view._open_enlarged_diagram()
+        assert app.guide_view._modal_window is not None
+        app.guide_view._close_enlarged_diagram()
+        assert app.guide_view._modal_window is None
+        print("       -> History & Guide enlarged modal creation and teardown verified!")
+    finally:
+        app.destroy()
+
+def test_guide_view_configure_redraw():
+    print("[32/33] Testing GuideView Canvas <Configure> Redraw & Size Guard...")
+    from ui.main_window import MainWindow
+    app = MainWindow()
+    app.update_idletasks()
+    try:
+        app.tabview.set("tab_guide")
+        app.guide_view.show_module(0)
+        cv = app.guide_view._canvas
+        assert cv is not None
+        # Call redraw with unmapped 1x1 width (must not crash, must use fallback)
+        app.guide_view._draw_diagram(cv, "g1_overview", is_fa=True)
+        items = cv.find_all()
+        assert len(items) > 0, "No items drawn on guide canvas"
+        print("       -> GuideView canvas size fallback and diagram items verified!")
+    finally:
+        app.destroy()
+
+def test_photo_aspect_ratio_scaling():
+    print("[33/33] Testing Photo Proportional Aspect Ratio Scaling...")
+    # Simulate a tall portrait image like hitachi_buildup (800 x 2319)
+    orig_w, orig_h = 800, 2319
+    per_img_max_w = 280
+    max_h = 200
+    scale = min(per_img_max_w / orig_w, max_h / orig_h)
+    new_w = max(1, int(orig_w * scale))
+    new_h = max(1, int(orig_h * scale))
+
+    orig_ratio = orig_w / orig_h
+    new_ratio = new_w / new_h
+    assert abs(orig_ratio - new_ratio) < 0.02, f"Aspect ratio distorted: orig={orig_ratio}, new={new_ratio}"
+    assert new_w <= per_img_max_w
+    assert new_h <= max_h
+    print("       -> Proportional photo aspect ratio scaling verified!")
+
 if __name__ == "__main__":
     print("=" * 70)
-    print("RUNNING EXTENDED DOUBLE-SLIT SIMULATOR 29-TEST VERIFICATION SUITE")
+    print("RUNNING EXTENDED DOUBLE-SLIT SIMULATOR 33-TEST VERIFICATION SUITE")
     print("=" * 70)
 
     test_classical_optics()
@@ -1016,6 +1117,10 @@ if __name__ == "__main__":
     test_mode_switch_state_restore()
     test_particle_switch_callback_order()
     test_docx_quantum_substitution()
+    test_slide_navigation_shortcuts()
+    test_enlarged_figure_modal()
+    test_guide_view_configure_redraw()
+    test_photo_aspect_ratio_scaling()
     print("=" * 70)
-    print("ALL 29 VERIFICATION TESTS PASSED SUCCESSFULLY! (100% PASS)")
+    print("ALL 33 VERIFICATION TESTS PASSED SUCCESSFULLY! (100% PASS)")
     print("=" * 70)

@@ -143,6 +143,14 @@ class MainWindow(ctk.CTk):
         self.bind("<F5>", lambda _e: self._handle_presentation_shortcut())
         self.bind("<F9>", lambda _e: self._open_web_presentation())
 
+        # Keyboard shortcuts for Slide Navigation (History & Guide tabs)
+        self.bind("<Right>", lambda _e: self._handle_slide_navigation(direction=1))
+        self.bind("<Down>", lambda _e: self._handle_slide_navigation(direction=1))
+        self.bind("<Next>", lambda _e: self._handle_slide_navigation(direction=1))
+        self.bind("<Left>", lambda _e: self._handle_slide_navigation(direction=-1))
+        self.bind("<Up>", lambda _e: self._handle_slide_navigation(direction=-1))
+        self.bind("<Prior>", lambda _e: self._handle_slide_navigation(direction=-1))
+
     def _build_layout(self):
         """Builds top bar, left sidebar controls, right views tabview, and metrics panel."""
         self.grid_columnconfigure(1, weight=1)
@@ -912,6 +920,57 @@ class MainWindow(ctk.CTk):
 
         if self._is_window_fullscreen:
             self._toggle_window_fullscreen()
+
+    def _is_text_input_focused(self) -> bool:
+        """Checks if keyboard focus is currently inside a text entry or input widget."""
+        try:
+            focused = self.focus_get()
+            if focused is None:
+                return False
+            w_class = focused.winfo_class().lower()
+            if w_class in ("entry", "text", "tentry", "spinbox"):
+                return True
+            if isinstance(focused, (tk.Entry, tk.Text, tk.Spinbox)):
+                return True
+            if hasattr(focused, "_entry") or hasattr(focused, "_textbox"):
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _handle_slide_navigation(self, direction: int) -> Optional[str]:
+        """
+        Navigates slides in History tab or modules in Software Guide tab.
+        direction: +1 for next (Right / Down / PageDown), -1 for previous (Left / Up / PageUp).
+        Suppressed if user is actively editing a numeric entry box.
+        """
+        if self._is_text_input_focused():
+            return None
+
+        try:
+            active_tab = self.tabview.get()
+        except Exception:
+            active_tab = ""
+
+        tab_hist_title = LocalizationService.get("tab_history")
+        tab_guide_title = LocalizationService.get("tab_guide")
+
+        if active_tab in ("tab_hist", tab_hist_title):
+            if hasattr(self, "history_view"):
+                if direction > 0:
+                    self.history_view.next_slide()
+                else:
+                    self.history_view.prev_slide()
+                return "break"
+        elif active_tab in ("tab_guide", tab_guide_title):
+            if hasattr(self, "guide_view"):
+                if direction > 0:
+                    self.guide_view.next_module()
+                else:
+                    self.guide_view.prev_module()
+                return "break"
+
+        return None
 
     def _handle_presentation_shortcut(self):
         """F5 hotkey: toggles presentation mode for History or Guide tab, or toggles theater mode."""

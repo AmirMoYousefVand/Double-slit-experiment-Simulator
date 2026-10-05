@@ -562,6 +562,18 @@ class LocalizationService:
         },
 
         # Canvas & Diagram Localization
+        "fig_expand": {
+            "en": "Expand ⛶",
+            "fa": f"{RLM}بزرگ‌نمایی ⛶{RLM}"
+        },
+        "fig_close": {
+            "en": "Close (Esc)",
+            "fa": f"{RLM}بستن (Esc){RLM}"
+        },
+        "fig_enlarged_title": {
+            "en": "Enlarged Visualizer",
+            "fa": f"{RLM}نمای بزرگ‌نمایی نگاره{RLM}"
+        },
         "canvas_laser": {
             "en": "LASER",
             "fa": "لیزر"

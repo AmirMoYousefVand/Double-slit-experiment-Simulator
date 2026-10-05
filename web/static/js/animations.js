@@ -119,7 +119,7 @@ const PhysicsAnimations = (function () {
             const cy = h / 2;
             const xSource = 55;
             const xBarrier = Math.floor(w * 0.36);
-            const xScreen = w - 55;
+            const xScreen = w - 85;
 
             const slitGap = Math.max(24, Math.min(dMm * 180, h * 0.42));
             const s1 = { x: xBarrier, y: cy - slitGap / 2 };
@@ -406,7 +406,7 @@ const PhysicsAnimations = (function () {
             const h = canvas.height = canvas.clientHeight || 380;
             const cy = h / 2;
             const xBarrier = Math.floor(w * 0.22);
-            const xScreen = w - 65;
+            const xScreen = w - 105;
             const slitGap = 90;
 
             const s1 = { x: xBarrier, y: cy - slitGap / 2 };
@@ -923,38 +923,40 @@ const PhysicsAnimations = (function () {
         ctx.fillText('He-Ne 632.8nm', 64, cy + 8);
 
         // Slits
+        const slitX = Math.max(180, Math.floor(w * 0.30));
         ctx.fillStyle = '#475569';
-        ctx.fillRect(220, cy - 35, 10, 75);
+        ctx.fillRect(slitX, cy - 35, 10, 75);
         ctx.fillStyle = '#F59E0B';
-        ctx.fillText('d = 0.25mm', 200, cy - 42);
+        ctx.fillText('d = 0.25mm', slitX - 20, cy - 42);
 
         // Screen
+        const scrX = Math.max(slitX + 120, Math.floor(w * 0.56));
         ctx.fillStyle = '#0F172A';
         ctx.strokeStyle = '#38BDF8';
-        ctx.fillRect(460, cy - 50, 12, 105);
-        ctx.strokeRect(460, cy - 50, 12, 105);
+        ctx.fillRect(scrX, cy - 50, 12, 105);
+        ctx.strokeRect(scrX, cy - 50, 12, 105);
         ctx.fillStyle = '#38BDF8';
-        ctx.fillText('L = 1.0 m', 445, cy + 72);
+        ctx.fillText('L = 1.0 m', scrX - 15, cy + 72);
 
         // Laser beam
         ctx.strokeStyle = '#EF4444';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(120, cy + 2);
-        ctx.lineTo(220, cy + 2);
+        ctx.lineTo(slitX, cy + 2);
         ctx.stroke();
 
         ctx.setLineDash([4, 2]);
         ctx.beginPath();
-        ctx.moveTo(230, cy + 2);
-        ctx.lineTo(460, cy - 20);
-        ctx.moveTo(230, cy + 2);
-        ctx.lineTo(460, cy + 25);
+        ctx.moveTo(slitX + 10, cy + 2);
+        ctx.lineTo(scrX, cy - 20);
+        ctx.moveTo(slitX + 10, cy + 2);
+        ctx.lineTo(scrX, cy + 25);
         ctx.stroke();
         ctx.setLineDash([]);
 
         // Magnifying Loupe on right
-        const loupeX = Math.floor(w * 0.78);
+        const loupeX = Math.max(scrX + 100, Math.floor(w * 0.82));
         const loupeR = 75;
 
         ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';

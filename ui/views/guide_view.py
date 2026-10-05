@@ -39,6 +39,7 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
 
         self._point_labels: List[ctk.CTkLabel] = []
         self._canvas: Optional[tk.Canvas] = None
+        self._modal_window: Optional[ctk.CTkToplevel] = None
         self._built = False
 
         self._create_chrome()
@@ -147,8 +148,30 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
         self.visual_card.grid(row=2, column=0, padx=14, pady=6, sticky="ew")
         self.visual_card.grid_columnconfigure(0, weight=1)
 
+        visual_top_bar = ctk.CTkFrame(self.visual_card, fg_color="transparent")
+        visual_top_bar.grid(row=0, column=0, padx=12, pady=(8, 0), sticky="ew")
+        visual_top_bar.grid_columnconfigure(0, weight=1)
+
+        self.diagram_badge = ctk.CTkLabel(
+            visual_top_bar,
+            text=LocalizationService.get("guide_badge"),
+            font=FontManager.get_persian_font(10, "bold") if is_fa else FontManager.get_number_font(10, "bold"),
+            text_color="#10B981", anchor="w"
+        )
+        self.diagram_badge.grid(row=0, column=0, sticky="w")
+
+        self.expand_btn = ctk.CTkButton(
+            visual_top_bar, text=LocalizationService.get("fig_expand"),
+            height=24, width=95,
+            font=FontManager.get_persian_font(9, "bold") if is_fa else FontManager.get_number_font(9, "bold"),
+            fg_color="#1E293B", hover_color="#059669",
+            border_width=1, border_color="#10B981",
+            command=self._open_enlarged_diagram
+        )
+        self.expand_btn.grid(row=0, column=1, sticky="e", padx=(4, 0))
+
         self.visual_holder = ctk.CTkFrame(self.visual_card, fg_color="transparent")
-        self.visual_holder.grid(row=0, column=0, padx=12, pady=12, sticky="ew")
+        self.visual_holder.grid(row=1, column=0, padx=12, pady=(4, 12), sticky="ew")
         self.visual_holder.grid_columnconfigure(0, weight=1)
 
         # ---------------- Bottom Navigation Bar ----------------
@@ -284,6 +307,12 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
         # Tip Card
         self.tip_label.configure(text=f"💡 {tip}")
 
+        # Reset scroll position to top of new module
+        try:
+            self._parent_canvas.yview_moveto(0.0)
+        except Exception:
+            pass
+
         # Update Navigation Buttons
         self.prev_btn.configure(
             text=LocalizationService.get("guide_prev"),
@@ -315,16 +344,26 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
         h = 360 if self.is_presentation_mode else 240
         cv = tk.Canvas(
             self.visual_holder, bg=_BG, highlightthickness=1,
-            highlightbackground=_CARD_BORDER, height=h
+            highlightbackground=_CARD_BORDER, height=h, cursor="hand2"
         )
         cv.grid(row=0, column=0, sticky="ew")
+        cv.bind("<Configure>", lambda _e: self._draw_diagram(cv, mod_id, is_fa))
+        cv.bind("<Button-1>", lambda _e: self._open_enlarged_diagram())
         self._canvas = cv
         cv.after_idle(lambda: self._draw_diagram(cv, mod_id, is_fa))
 
     def _draw_diagram(self, cv: tk.Canvas, mod_id: str, is_fa: bool):
         cv.delete("all")
-        w = cv.winfo_width() or 640
-        h = cv.winfo_height() or 240
+        w = cv.winfo_width()
+        if w <= 50:
+            try:
+                pw = self.visual_holder.winfo_width()
+                w = pw if pw > 50 else 640
+            except Exception:
+                w = 640
+        h = cv.winfo_height()
+        if h <= 50:
+            h = 360 if self.is_presentation_mode else 240
         cy = h // 2
 
         if mod_id == "g1_overview":
@@ -337,7 +376,7 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
             LocalizationService.render_canvas_persian(cv, 30 + ctrl_w // 2, cy - 10, "پنل کنترل\n(پارامترها و کوانتوم)" if is_fa else "Control Panel\n(Optics & Quantum)", font=("Segoe UI", 9, "bold"), fill="#FCD34D")
 
             cv.create_rectangle(40 + ctrl_w, 60, w - 30, h - 55, fill="#1E293B", outline="#10B981", width=2)
-            LocalizationService.render_canvas_persian(cv, (40 + ctrl_w + w - 30) // 2, cy - 10, "فضای کاری ۷ نما (پرده، پروفایل، شماتیک، ۳D، محاسبات، تاریخچه، راهنما)" if is_fa else "7 Interactive Views (2D, 1D, Schematic, 3D, Calc, History, Guide)", font=("Segoe UI", 9, "bold"), fill="#6EE7B7")
+            LocalizationService.render_canvas_persian(cv, (40 + ctrl_w + w - 30) // 2, cy - 10, "فضای کاری ۷ نما (پرده، ۱D، شماتیک، ۳D، محاسبات، تاریخ، راهنما)" if is_fa else "7 Interactive Views (2D, 1D, Schematic, 3D, Calc, History, Guide)", font=("Segoe UI", 9 if w > 640 else 8, "bold"), fill="#6EE7B7")
 
             cv.create_rectangle(30, h - 45, w - 30, h - 15, fill="#1E293B", outline="#8B5CF6", width=2)
             LocalizationService.render_canvas_persian(cv, w // 2, h - 30, "پنل متریک‌ها و خروجی‌های آزمایشگاه (CSV، عکس ۳۰۰ DPI، مدل OBJ، بسته ZIP)" if is_fa else "Metrics & Scientific Exports (CSV, PNG, OBJ, ZIP)", font=("Segoe UI", 9, "bold"), fill="#C4B5FD")
@@ -360,6 +399,8 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
             for r_y in range(30, h - 30, 20):
                 cv.create_line(sx - 160, r_y, sx - 146, r_y, fill="#FFFFFF", width=1.5)
                 cv.create_line(sx + 146, r_y, sx + 160, r_y, fill="#FFFFFF", width=1.5)
+            # Label backdrop pill to avoid fringe collision
+            cv.create_rectangle(sx - 130, h - 46, sx + 130, h - 18, fill="#0F172A", outline="#3B82F6", width=1.5)
             LocalizationService.render_canvas_persian(cv, sx, h - 32, "پرده با پالت‌های رنگی و خط‌کش میلی‌متری" if is_fa else "Calibrated Screen & Millimeter Scale", font=("Segoe UI", 9, "bold"), fill="#FFFFFF")
 
         elif mod_id == "g3_profile_1d":
@@ -384,7 +425,7 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
             cv.create_line(60, cy - 35, w - 120, cy - 15, fill="#00E676", width=2, dash=(6, 2))
             cv.create_line(60, cy + 35, w - 120, cy - 15, fill="#FFD600", width=2, dash=(6, 2))
             cv.create_oval(w - 126, cy - 21, w - 114, cy - 9, fill="#FFFFFF", outline="#00E676", width=2)
-            LocalizationService.render_canvas_persian(cv, w - 90, cy - 15, "نقطه P (قابل کشیدن با ماوس)" if is_fa else "Point P (Draggable)", font=("Segoe UI", 9, "bold"), fill="#00E676")
+            LocalizationService.render_canvas_persian(cv, w - 138, cy - 15, "نقطه P (قابل کشیدن)" if is_fa else "Point P (Draggable)", font=("Segoe UI", 9, "bold"), fill="#00E676", anchor="e" if is_fa else "w")
             LocalizationService.render_canvas_persian(cv, w // 2, cy - 40, "مثلث اختلاف راه: Δr = |r2 - r1| = d · sinθ" if is_fa else "Path Difference: Δr = |r2 - r1| = d · sinθ", font=("Segoe UI", 10, "bold"), fill="#FCD34D")
 
         elif mod_id == "g5_setup_3d":
@@ -397,7 +438,8 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
         elif mod_id == "g6_calculations":
             # Equations Cards & Inspector Slider Preview
             cv.create_rectangle(50, 30, w - 50, h - 30, fill="#0F172A", outline="#2563EB", width=1.5)
-            LocalizationService.render_canvas_persian(cv, w // 2, cy - 35, "Δr = d · (y / L) | Δy = (λ · L) / d | I = 4I₀ cos²(Δφ / 2)" if is_fa else "Δr = d·(y/L) | Δy = (λ·L)/d | I = 4I0 cos²(Δφ/2)", font=("Consolas", 12, "bold"), fill="#38BDF8")
+            f_size = 12 if w > 750 else (10 if w > 580 else 8)
+            LocalizationService.render_canvas_persian(cv, w // 2, cy - 35, "Δr = d · (y / L) | Δy = (λ · L) / d | I = 4I₀ cos²(Δφ / 2)" if is_fa else "Δr = d·(y/L) | Δy = (λ·L)/d | I = 4I0 cos²(Δφ/2)", font=("Consolas", f_size, "bold"), fill="#38BDF8")
             LocalizationService.render_canvas_persian(cv, w // 2, cy + 5, "کاوشگر نقطه‌ای: محاسبه لحظه‌ای زاویه، فاز و شدت در هر مختصات y" if is_fa else "Point Inspector: Live Angle, Phase & Intensity Evaluation", font=("Segoe UI", 9, "bold"), fill="#6EE7B7")
             LocalizationService.render_canvas_persian(cv, w // 2, cy + 35, "📄 خروجی گزارش Word با فرمول‌های ریاضی رسمی OMML" if is_fa else "📄 Export Word Lab Report with OMML Math Equations", font=("Segoe UI", 9, "bold"), fill="#F59E0B")
 
@@ -408,7 +450,7 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
             cv.create_text(w // 2, cy - 15, text="➔", fill="#94A3B8", font=("Segoe UI", 16))
             cv.create_oval(w // 2 + 30, cy - 45, w // 2 + 90, cy + 15, fill="#065F46", outline="#10B981", width=2)
             cv.create_text(w // 2 + 60, cy - 15, text="|ψ|²", fill="#10B981", font=("Consolas", 13, "bold"))
-            LocalizationService.render_canvas_persian(cv, w // 2, cy + 45, "دوگانگی موج-ذره: فوتون، الکترون، نوترون، آلفا، مولکول باکی‌بال C₆₀" if is_fa else "Wave-Particle Duality: Photons, Electrons, Neutrons, Alphas, C60 Buckyballs", font=("Segoe UI", 10, "bold"), fill="#A7F3D0")
+            LocalizationService.render_canvas_persian(cv, w // 2, cy + 45, "دوگانگی موج-ذره: فوتون، الکترون و مولکول باکی‌بال C₆₀" if is_fa else "Wave-Particle Duality: Photons, Electrons, and C60 Buckyballs", font=("Segoe UI", 10, "bold"), fill="#A7F3D0")
 
         elif mod_id == "g8_which_way_exports":
             # Observer & 4 Export Formats
@@ -420,6 +462,80 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
                 cv.create_rectangle(bx + 4, cy - 25, bx + box_w - 4, cy + 25, fill="#1E293B", outline="#10B981", width=1.5)
                 LocalizationService.render_canvas_persian(cv, bx + box_w // 2, cy, fmt, font=("Segoe UI", 9, "bold"), fill="#E2E8F0")
             LocalizationService.render_canvas_persian(cv, w // 2, cy - 50, "سوییچ ناظر Which-Way: شبیه‌سازی فروریزش تابع موج و ناهمدوسی" if is_fa else "Which-Way Switch: Simulates Decoherence & Wavefunction Collapse", font=("Segoe UI", 10, "bold"), fill="#EF4444")
+
+    def _open_enlarged_diagram(self):
+        """Opens the active guide module diagram in a large modal window."""
+        if getattr(self, "_modal_window", None) is not None:
+            try:
+                self._modal_window.focus()
+                return
+            except Exception:
+                self._modal_window = None
+
+        mod = GUIDE_MODULES[self.module_index] if self.module_index < len(GUIDE_MODULES) else None
+        if mod is None:
+            return
+        mod_id = mod["id"]
+        is_fa = LocalizationService.is_persian()
+        title = mod.get("title_fa" if is_fa else "title_en", "")
+
+        modal = ctk.CTkToplevel(self)
+        modal.title(f"{LocalizationService.get('fig_enlarged_title')} — {title}")
+        modal.configure(fg_color="#0A0E1A")
+
+        sw = modal.winfo_screenwidth()
+        sh = modal.winfo_screenheight()
+        mw = max(800, min(1400, int(sw * 0.88)))
+        mh = max(520, min(800, int(sh * 0.82)))
+        mx = (sw - mw) // 2
+        my = max(20, (sh - mh) // 2 - 20)
+        modal.geometry(f"{mw}x{mh}+{mx}+{my}")
+        modal.minsize(720, 460)
+
+        header = ctk.CTkFrame(modal, fg_color="#111827", height=44, corner_radius=0)
+        header.pack(fill="x", side="top")
+
+        close_btn = ctk.CTkButton(
+            header, text=LocalizationService.get("fig_close"),
+            width=96, height=28,
+            fg_color="#EF4444", hover_color="#DC2626",
+            font=FontManager.get_persian_font(10, "bold") if is_fa else FontManager.get_number_font(10, "bold"),
+            command=self._close_enlarged_diagram
+        )
+        close_btn.pack(side="right" if not is_fa else "left", padx=12, pady=8)
+
+        title_lbl = ctk.CTkLabel(
+            header, text=title,
+            font=FontManager.get_persian_font(12, "bold") if is_fa else FontManager.get_number_font(12, "bold"),
+            text_color="#10B981"
+        )
+        title_lbl.pack(side="left" if not is_fa else "right", padx=16, pady=8)
+
+        content_frame = ctk.CTkFrame(modal, fg_color="#060911")
+        content_frame.pack(fill="both", expand=True, padx=12, pady=12)
+
+        m_cv = tk.Canvas(content_frame, bg=_BG, highlightthickness=0)
+        m_cv.pack(fill="both", expand=True)
+
+        def _draw_m():
+            if not m_cv.winfo_exists():
+                return
+            self._draw_diagram(m_cv, mod_id, is_fa)
+
+        m_cv.after_idle(_draw_m)
+        m_cv.bind("<Configure>", lambda _e: _draw_m())
+
+        self._modal_window = modal
+        modal.bind("<Escape>", lambda _e: self._close_enlarged_diagram())
+        modal.protocol("WM_DELETE_WINDOW", self._close_enlarged_diagram)
+
+    def _close_enlarged_diagram(self):
+        if getattr(self, "_modal_window", None) is not None:
+            try:
+                self._modal_window.destroy()
+            except Exception:
+                pass
+            self._modal_window = None
 
     # ======================================================================
     # Navigation & Lifecycle
@@ -448,5 +564,15 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
             self.btn_web_presentation.configure(
                 text=LocalizationService.get("web_presentation_btn"),
                 font=FontManager.get_persian_font(11, "bold") if is_fa else FontManager.get_number_font(11, "bold")
+            )
+        if hasattr(self, "diagram_badge"):
+            self.diagram_badge.configure(
+                text=LocalizationService.get("guide_badge"),
+                font=FontManager.get_persian_font(10, "bold") if is_fa else FontManager.get_number_font(10, "bold")
+            )
+        if hasattr(self, "expand_btn"):
+            self.expand_btn.configure(
+                text=LocalizationService.get("fig_expand"),
+                font=FontManager.get_persian_font(9, "bold") if is_fa else FontManager.get_number_font(9, "bold")
             )
         self.show_module(self.module_index)

@@ -70,7 +70,10 @@
             <div class="diagram-container" id="diagram-container-box">
                 <div class="diagram-header" id="diagram-header-bar">
                     <span id="diagram-badge-text">نگاره تعاملی</span>
-                    <span id="diagram-subbadge-text"></span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span id="diagram-subbadge-text"></span>
+                        <button class="btn-action" style="padding: 2px 8px; font-size: 0.75rem;" onclick="openDiagramLightbox()" id="btn-expand-diagram" title="بزرگ‌نمایی">⛶ بزرگ‌نمایی</button>
+                    </div>
                 </div>
                 <div id="diagram-media-wrapper">
                     <!-- Photo Image or HTML5 Canvas or SVG inserted here -->
@@ -167,6 +170,18 @@
             <span id="label-next">بعدی</span> <span>→</span>
         </button>
     </footer>
+
+    <!-- Lightbox Modal for Enlarged Figure/Photo -->
+    <div id="diagram-lightbox" class="lightbox-overlay" style="display: none;" onclick="closeDiagramLightbox(event)">
+        <div class="lightbox-content" onclick="event.stopPropagation()">
+            <div class="lightbox-header">
+                <span id="lightbox-title" style="font-weight: 700; color: var(--accent-cyan);"></span>
+                <button class="btn-action" style="background: #ef4444; border-color: #f87171; padding: 4px 10px;" onclick="closeDiagramLightbox()">✕ بستن (Esc)</button>
+            </div>
+            <div id="lightbox-body" class="lightbox-body"></div>
+            <div id="lightbox-caption" class="lightbox-caption"></div>
+        </div>
+    </div>
 
     <!-- Initial Data Payload from Backend -->
     <script id="initial-payload" type="application/json">

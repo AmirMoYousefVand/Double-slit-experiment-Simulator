@@ -83,6 +83,8 @@ class HistoryView(ctk.CTkScrollableFrame):
         self._mpl_canvas: Optional[FigureCanvasTkAgg] = None
         self._mpl_line = None
         self._body_labels: List[ctk.CTkLabel] = []
+        self._modal_window: Optional[ctk.CTkToplevel] = None
+        self._modal_canvas: Optional[tk.Canvas] = None
         self._built = False
 
         self._create_chrome()
@@ -198,6 +200,17 @@ class HistoryView(ctk.CTkScrollableFrame):
             fg_color="#1E293B", hover_color="#334155",
             command=self._toggle_buildup_observer
         )
+
+        # Fullscreen / Enlarged modal expansion button
+        self.expand_btn = ctk.CTkButton(
+            fig_top_bar, text=LocalizationService.get("fig_expand"),
+            height=24, width=95,
+            font=FontManager.get_persian_font(9, "bold") if is_fa else FontManager.get_number_font(9, "bold"),
+            fg_color="#1E293B", hover_color="#2563EB",
+            border_width=1, border_color="#3B82F6",
+            command=self._open_enlarged_figure
+        )
+        self.expand_btn.grid(row=0, column=2, sticky="e", padx=(4, 0))
 
         self.fig_holder = ctk.CTkFrame(self.fig_card, fg_color="transparent")
         self.fig_holder.grid(row=1, column=0, padx=12, pady=6, sticky="ew")
@@ -365,6 +378,12 @@ class HistoryView(ctk.CTkScrollableFrame):
         else:
             self._show_quiz_slide(index - len(SLIDES), total_slides, is_fa)
 
+        # Reset scroll position to top of new slide
+        try:
+            self._parent_canvas.yview_moveto(0.0)
+        except Exception:
+            pass
+
         self.counter_label.configure(text=f"{index + 1} / {total_slides}")
         self.progress.set((index + 1) / total_slides)
         dots = "".join("●" if i == index else "○" for i in range(total_slides))
@@ -463,6 +482,12 @@ class HistoryView(ctk.CTkScrollableFrame):
         self._clear_figure()
         fig = slide.get("figure", {"kind": "none"})
         kind = fig.get("kind", "none")
+        cap = fig.get("caption_fa", "") if is_fa else fig.get("caption_en", "")
+
+        if kind != "none":
+            self.expand_btn.grid(row=0, column=2, sticky="e", padx=(4, 0))
+        else:
+            self.expand_btn.grid_remove()
 
         if kind == "photo":
             self.live_badge.configure(text="")
@@ -470,29 +495,29 @@ class HistoryView(ctk.CTkScrollableFrame):
         elif kind in ("apparatus", "duel"):
             self.live_badge.configure(text="")
             self._build_apparatus_canvas(is_fa)
-            self.caption_label.configure(text="")
+            self.caption_label.configure(text=cap)
         elif kind == "huygens":
             self.live_badge.configure(text="")
             self._build_huygens_canvas(animated=True, is_fa=is_fa)
-            self.caption_label.configure(text="")
+            self.caption_label.configure(text=cap)
         elif kind == "triangle":
             self.live_badge.configure(text="")
             self._build_triangle_canvas(is_fa)
-            self.caption_label.configure(text="")
+            self.caption_label.configure(text=cap)
         elif kind == "interference":
             self.live_badge.configure(text="")
             self._build_interference_canvas(is_fa)
-            self.caption_label.configure(text="")
+            self.caption_label.configure(text=cap)
         elif kind in ("fringe", "worked_bench", "envelope", "interactive_fringe"):
             self.live_badge.configure(text=LocalizationService.get("hist_live_badge"))
             self._build_fringe_plot(is_fa)
-            self.caption_label.configure(text="")
+            self.caption_label.configure(text=cap)
         elif kind == "buildup":
             self.live_badge.configure(text="")
             self.fig_ctrl_btn.grid(row=0, column=1, sticky="e")
             self._update_buildup_btn_text()
             self._build_buildup_canvas(is_fa)
-            self.caption_label.configure(text="")
+            self.caption_label.configure(text=cap)
         else:
             self.live_badge.configure(text="")
             self.caption_label.configure(text="")
@@ -524,6 +549,7 @@ class HistoryView(ctk.CTkScrollableFrame):
         self.live_badge.configure(text="")
         self.caption_label.configure(text="")
         self.fig_ctrl_btn.grid_remove()
+        self.expand_btn.grid_remove()
 
         self.quiz_card.grid()
         self._render_quiz_question(is_fa)
@@ -536,11 +562,28 @@ class HistoryView(ctk.CTkScrollableFrame):
                 child.destroy()
             except Exception:
                 pass
+        # Reset grid weights so multi-image columns do not squash procedural canvases
+        self.fig_holder.grid_columnconfigure(0, weight=1)
+        self.fig_holder.grid_columnconfigure(1, weight=0)
         self._canvas = None
         self._mpl_fig = None
         self._mpl_canvas = None
         self._mpl_line = None
         self._photo_refs = []
+
+    def _get_canvas_width(self, cv: tk.Canvas) -> int:
+        """Safely returns the canvas pixel width, falling back to parent container
+        if the canvas is not yet mapped on screen."""
+        try:
+            w = cv.winfo_width()
+            if w > 50:
+                return w
+            pw = self.fig_holder.winfo_width()
+            if pw > 50:
+                return pw
+        except Exception:
+            pass
+        return 800 if self.is_presentation_mode else 640
 
     # ======================================================================
     # Procedural Vector Figures & Canvases
@@ -549,10 +592,11 @@ class HistoryView(ctk.CTkScrollableFrame):
         h = 440 if self.is_presentation_mode else height
         cv = tk.Canvas(
             self.fig_holder, bg=_BG, highlightthickness=1,
-            highlightbackground=_CARD_BORDER, height=h
+            highlightbackground=_CARD_BORDER, height=h, cursor="hand2"
         )
-        cv.grid(row=0, column=0, sticky="ew", pady=6)
+        cv.grid(row=0, column=0, columnspan=2, sticky="ew", pady=6)
         cv.bind("<Configure>", lambda _e: self._redraw_canvas())
+        cv.bind("<Button-1>", lambda _e: self._open_enlarged_figure())
         self._canvas = cv
         return cv
 
@@ -562,9 +606,7 @@ class HistoryView(ctk.CTkScrollableFrame):
             return
         kind = slide.get("figure", {}).get("kind", "none")
         try:
-            w = self._canvas.winfo_width()
-            if w < 50:
-                return
+            w = self._get_canvas_width(self._canvas)
             is_fa = LocalizationService.is_persian()
             if kind in ("apparatus", "duel"):
                 self._draw_apparatus(self._canvas, w, is_fa)
@@ -582,7 +624,7 @@ class HistoryView(ctk.CTkScrollableFrame):
     # ---- 1. Optical Apparatus Vector Diagram ----
     def _build_apparatus_canvas(self, is_fa: bool):
         cv = self._new_canvas(300)
-        cv.after_idle(lambda: self._draw_apparatus(cv, cv.winfo_width() or 640, is_fa))
+        cv.after_idle(lambda: self._draw_apparatus(cv, self._get_canvas_width(cv), is_fa))
 
     def _draw_apparatus(self, cv: tk.Canvas, w: int, is_fa: bool):
         cv.delete("all")
@@ -617,7 +659,7 @@ class HistoryView(ctk.CTkScrollableFrame):
             cv, bx - 32, cy, "d", font=("Segoe UI", 11, "bold"), fill="#F59E0B"
         )
         LocalizationService.render_canvas_persian(
-            cv, bx, h - 8, LocalizationService.get("canvas_barrier"),
+            cv, bx, h - 18, LocalizationService.get("canvas_barrier"),
             font=("Segoe UI", 9, "bold"), fill="#94A3B8"
         )
 
@@ -625,7 +667,7 @@ class HistoryView(ctk.CTkScrollableFrame):
         sx = int(w * 0.90)
         cv.create_rectangle(sx - 6, 16, sx + 6, h - 16, fill="#0F172A", outline="#3B82F6", width=2)
         LocalizationService.render_canvas_persian(
-            cv, sx, 8, LocalizationService.get("canvas_screen"),
+            cv, sx, 18, LocalizationService.get("canvas_screen"),
             font=("Segoe UI", 9, "bold"), fill="#38BDF8"
         )
 
@@ -653,14 +695,14 @@ class HistoryView(ctk.CTkScrollableFrame):
             self._anim_phase = 0.0
             self._tick_huygens()
         else:
-            cv.after_idle(lambda: self._draw_huygens(cv, cv.winfo_width() or 640, animated=False, is_fa=is_fa))
+            cv.after_idle(lambda: self._draw_huygens(cv, self._get_canvas_width(cv), animated=False, is_fa=is_fa))
 
     def _tick_huygens(self):
         if self._canvas is None or not self._canvas.winfo_exists():
             self._anim_job = None
             return
         try:
-            w = self._canvas.winfo_width() or 640
+            w = self._get_canvas_width(self._canvas)
             is_fa = LocalizationService.is_persian()
             self._draw_huygens(self._canvas, w, animated=True, is_fa=is_fa)
         except Exception:
@@ -675,6 +717,7 @@ class HistoryView(ctk.CTkScrollableFrame):
         slit_gap = 60
         cy = h // 2
         phase = self._anim_phase if animated else 1.2
+        sx = int(w * 0.90)
 
         # 1. Incoming Plane Wavefronts
         for k in range(8):
@@ -691,8 +734,8 @@ class HistoryView(ctk.CTkScrollableFrame):
         s1 = (barrier_x, cy - slit_gap // 2)
         s2 = (barrier_x, cy + slit_gap // 2)
 
-        # 3. Huygens Wavelets expanding from each slit
-        max_r = int(w * 0.58)
+        # 3. Huygens Wavelets expanding from each slit (bounded so they don't overshoot screen or canvas)
+        max_r = min(int(w * 0.48), sx - barrier_x - 12)
         for r in range(16, max_r, 22):
             rr = r + (6 * math.sin(phase) if animated else 0)
             if rr <= 6:
@@ -703,7 +746,6 @@ class HistoryView(ctk.CTkScrollableFrame):
                           start=-68, extent=136, outline="#F59E0B", width=1.5, style=tk.ARC)
 
         # 4. Detector Screen & Luminous Interference Ribbon
-        sx = int(w * 0.92)
         cv.create_rectangle(sx - 4, 16, sx + 4, h - 16, fill="#0F172A", outline="#475569")
         for y_idx in range(20, h - 20, 4):
             dy = (y_idx - cy) / 28.0
@@ -721,43 +763,74 @@ class HistoryView(ctk.CTkScrollableFrame):
             font=("Segoe UI", 9, "bold"), fill="#38BDF8"
         )
         LocalizationService.render_canvas_persian(
-            cv, barrier_x, h - 6, "d", font=("Segoe UI", 10, "bold"), fill="#F59E0B"
+            cv, barrier_x, cy, "d", font=("Segoe UI", 10, "bold"), fill="#F59E0B"
         )
         LocalizationService.render_canvas_persian(
-            cv, sx, 8, LocalizationService.get("canvas_screen"),
+            cv, barrier_x, h - 18, LocalizationService.get("canvas_barrier"),
+            font=("Segoe UI", 9, "bold"), fill="#94A3B8"
+        )
+        LocalizationService.render_canvas_persian(
+            cv, sx, 18, LocalizationService.get("canvas_screen"),
             font=("Segoe UI", 9, "bold"), fill="#38BDF8"
         )
 
     # ---- 3. Path Difference Right Triangle ----
     def _build_triangle_canvas(self, is_fa: bool):
         cv = self._new_canvas(300)
-        cv.after_idle(lambda: self._draw_triangle(cv, cv.winfo_width() or 640, is_fa))
+        cv.after_idle(lambda: self._draw_triangle(cv, self._get_canvas_width(cv), is_fa))
 
     def _draw_triangle(self, cv: tk.Canvas, w: int, is_fa: bool):
         cv.delete("all")
         h = cv.winfo_height() or 300
-        s1 = (100, 75)
-        s2 = (100, 225)
-        p = (w - 110, 185)
-        foot = (p[0], s1[1])
+        cy = h // 2
+        slit_spacing = min(150, int(h * 0.45))
+        s1 = (100, cy - slit_spacing // 2)
+        s2 = (100, cy + slit_spacing // 2)
+        p = (w - 110, cy - int(slit_spacing * 0.35))
 
         # Ray lines
         cv.create_line(s1[0], s1[1], p[0], p[1], fill="#38BDF8", width=2.5)
         cv.create_line(s2[0], s2[1], p[0], p[1], fill="#F59E0B", width=2.5)
 
-        # Normal projection (right angle)
-        cv.create_line(s1[0], s1[1], foot[0], foot[1], fill="#64748B", width=1, dash=(5, 4))
-        cv.create_line(foot[0] - 14, foot[1], foot[0], foot[1], fill="#EF4444", width=2.5)
-        cv.create_line(foot[0], foot[1], foot[0], foot[1] + 14, fill="#EF4444", width=2.5)
+        # Geometrically accurate projection of S1 onto ray S2 -> P (normal H)
+        vx = p[0] - s2[0]
+        vy = p[1] - s2[1]
+        v_len = max(math.hypot(vx, vy), 1e-6)
+        ux, uy = vx / v_len, vy / v_len
+        wx = s1[0] - s2[0]
+        wy = s1[1] - s2[1]
+        proj = wx * ux + wy * uy
+        hx = int(s2[0] + proj * ux)
+        hy = int(s2[1] + proj * uy)
 
-        # Points
-        for cx, cy, t, col in ((s1[0], s1[1], "S1", "#38BDF8"), (s2[0], s2[1], "S2", "#F59E0B"), (p[0], p[1], "P", "#10B981")):
-            cv.create_oval(cx - 6, cy - 6, cx + 6, cy + 6, fill=col, outline="#FFFFFF", width=1.5)
-            cv.create_text(cx - 24, cy, text=t, fill="#FFFFFF", font=("Segoe UI", 11, "bold"))
+        # Normal perpendicular line from S1 to H
+        cv.create_line(s1[0], s1[1], hx, hy, fill="#EF4444", width=2, dash=(5, 3))
+        # Perpendicular right-angle mark at H
+        norm_x, norm_y = -uy, ux
+        box_sz = 9
+        cv.create_line(hx + norm_x * box_sz, hy + norm_y * box_sz,
+                       hx + (norm_x + ux) * box_sz, hy + (norm_y + uy) * box_sz,
+                       fill="#EF4444", width=1.5)
+        cv.create_line(hx + (norm_x + ux) * box_sz, hy + (norm_y + uy) * box_sz,
+                       hx + ux * box_sz, hy + uy * box_sz,
+                       fill="#EF4444", width=1.5)
+
+        # Highlight extra path segment S2 -> H as Delta r
+        cv.create_line(s2[0], s2[1], hx, hy, fill="#EF4444", width=4)
+
+        # Points S1, S2, P, and H
+        for cx, cy_pt, t, col in (
+            (s1[0], s1[1], "S1", "#38BDF8"),
+            (s2[0], s2[1], "S2", "#F59E0B"),
+            (p[0], p[1], "P", "#10B981"),
+            (hx, hy, "H", "#EF4444")
+        ):
+            cv.create_oval(cx - 5, cy_pt - 5, cx + 5, cy_pt + 5, fill=col, outline="#FFFFFF", width=1.5)
+            cv.create_text(cx - 18 if cx < w // 2 else cx + 18, cy_pt, text=t, fill="#FFFFFF", font=("Segoe UI", 10, "bold"))
 
         cv.create_text((s1[0] + p[0]) // 2 - 20, (s1[1] + p[1]) // 2 - 16,
                        text="r1", fill="#38BDF8", font=("Segoe UI", 12, "bold"))
-        cv.create_text((s2[0] + p[0]) // 2 - 20, (s2[1] + p[1]) // 2 + 18,
+        cv.create_text((hx + p[0]) // 2 - 20, (hy + p[1]) // 2 + 18,
                        text="r2", fill="#F59E0B", font=("Segoe UI", 12, "bold"))
 
         # Slit separation d
@@ -765,14 +838,15 @@ class HistoryView(ctk.CTkScrollableFrame):
         cv.create_text(s1[0] - 32, (s1[1] + s2[1]) // 2, text="d", fill="#F59E0B", font=("Segoe UI", 12, "bold"))
 
         # Delta r callout badge
-        midx = (s1[0] + foot[0]) // 2
-        cv.create_rectangle(midx - 70, s1[1] - 28, midx + 70, s1[1] - 4, fill="#1E293B", outline="#EF4444", width=1.5)
-        cv.create_text(midx, s1[1] - 16, text="Δr = d · sinθ", fill="#EF4444", font=("Segoe UI", 11, "bold"))
+        mid_dh_x = (s2[0] + hx) // 2
+        mid_dh_y = (s2[1] + hy) // 2 + 28
+        cv.create_rectangle(mid_dh_x - 70, mid_dh_y - 14, mid_dh_x + 70, mid_dh_y + 14, fill="#1E293B", outline="#EF4444", width=1.5)
+        cv.create_text(mid_dh_x, mid_dh_y, text="Δr = d · sinθ", fill="#EF4444", font=("Segoe UI", 11, "bold"))
 
     # ---- 4. Superposition & Phasor Circle Visualizer ----
     def _build_interference_canvas(self, is_fa: bool):
         cv = self._new_canvas(300)
-        cv.after_idle(lambda: self._draw_interference(cv, cv.winfo_width() or 640, is_fa))
+        cv.after_idle(lambda: self._draw_interference(cv, self._get_canvas_width(cv), is_fa))
 
     def _draw_interference(self, cv: tk.Canvas, w: int, is_fa: bool):
         cv.delete("all")
@@ -795,9 +869,10 @@ class HistoryView(ctk.CTkScrollableFrame):
             cv.create_line(x_pts[i], y_wave1[i], x_pts[i+1], y_wave1[i+1], fill="#38BDF8", width=1.5, dash=(4, 2))
             cv.create_line(x_pts[i], y_net[i], x_pts[i+1], y_net[i+1], fill="#10B981", width=2.5)
 
+        interf_title = "E_net = E1 + E2 (تداخل سازنده I = 4I₀)" if is_fa else "E_net = E1 + E2 (Constructive I = 4I0)"
         LocalizationService.render_canvas_persian(
-            cv, plot_w // 2, 34, "E_net = E1 + E2 (تداخل سازنده بیشینه I = 4I₀)" if is_fa else "E_net = E1 + E2 (Constructive I = 4I0)",
-            font=("Segoe UI", 9, "bold"), fill="#10B981"
+            cv, plot_w // 2, 34, interf_title,
+            font=("Segoe UI", 9 if plot_w > 380 else 8, "bold"), fill="#10B981"
         )
 
         # 2. Right side: Phasor Circle Diagram
@@ -818,7 +893,9 @@ class HistoryView(ctk.CTkScrollableFrame):
 
     # ---- 5. Live Matplotlib Fringe Plot ----
     def _build_fringe_plot(self, is_fa: bool):
-        self._mpl_fig = Figure(figsize=(6.8, 2.8), dpi=100, facecolor=_CARD)
+        fig_h = 3.6 if self.is_presentation_mode else 2.8
+        self._mpl_fig = Figure(figsize=(6.8, fig_h), dpi=100, facecolor=_CARD)
+        self._mpl_fig.subplots_adjust(bottom=0.24, top=0.92, left=0.10, right=0.96)
         ax = self._mpl_fig.add_subplot(111, facecolor=_BG)
         ax.set_ylim(-0.06, 1.24)
         ax.grid(True, linestyle="--", alpha=0.3, color="#475569")
@@ -833,7 +910,10 @@ class HistoryView(ctk.CTkScrollableFrame):
 
         self._refresh_fringe_data()
         self._mpl_canvas = FigureCanvasTkAgg(self._mpl_fig, master=self.fig_holder)
-        self._mpl_canvas.get_tk_widget().grid(row=0, column=0, sticky="ew", pady=6)
+        tk_w = self._mpl_canvas.get_tk_widget()
+        tk_w.configure(cursor="hand2")
+        tk_w.bind("<Button-1>", lambda _e: self._open_enlarged_figure())
+        tk_w.grid(row=0, column=0, columnspan=2, sticky="ew", pady=6)
 
     def _refresh_fringe_data(self):
         if self._mpl_line is None or self._mpl_fig is None:
@@ -885,11 +965,12 @@ class HistoryView(ctk.CTkScrollableFrame):
         self.fig_ctrl_btn.configure(text=txt, fg_color=col, hover_color=col)
 
     def _tick_buildup(self):
-        if not self._buildup_job_active or self._canvas is None or not self._canvas.winfo_exists():
+        target_cv = self._modal_canvas if (self._modal_canvas and self._modal_canvas.winfo_exists()) else self._canvas
+        if not self._buildup_job_active or target_cv is None or not target_cv.winfo_exists():
             return
         rng = np.random.default_rng()
-        w = self._canvas.winfo_width() or 640
-        h = self._canvas.winfo_height() or 300
+        w = target_cv.winfo_width() or self._get_canvas_width(target_cv)
+        h = target_cv.winfo_height() or 300
 
         # Sample particles
         for _ in range(12):
@@ -902,10 +983,8 @@ class HistoryView(ctk.CTkScrollableFrame):
                 prob = 0.5 * (math.exp(-((x_frac - 0.42) ** 2) / 0.015) + math.exp(-((x_frac - 0.58) ** 2) / 0.015))
 
             if rng.random() < prob:
-                px = int(x_frac * (w - 80) + 40)
-                py = int(rng.normal(h // 2, 45))
-                py = max(20, min(h - 20, py))
-                self._buildup_dots.append({"x": px, "y": py, "age": 0})
+                py_offset = float(rng.normal(0, 45))
+                self._buildup_dots.append({"xf": x_frac, "dy": py_offset, "age": 0})
                 if len(self._buildup_dots) > 1000:
                     self._buildup_dots.pop(0)
 
@@ -915,7 +994,7 @@ class HistoryView(ctk.CTkScrollableFrame):
                 d["age"] += 1
 
         try:
-            self._draw_buildup(self._canvas, w, LocalizationService.is_persian())
+            self._draw_buildup(target_cv, w, LocalizationService.is_persian())
         except Exception:
             pass
 
@@ -925,10 +1004,13 @@ class HistoryView(ctk.CTkScrollableFrame):
     def _draw_buildup(self, cv: tk.Canvas, w: int, is_fa: bool):
         cv.delete("all")
         h = cv.winfo_height() or 300
+        cy = h // 2
         cv.create_rectangle(0, 0, w, h, fill="#0F172A", outline="")
 
         for d in self._buildup_dots:
-            x, y, age = d["x"], d["y"], d["age"]
+            x = int(d.get("xf", 0.5) * (w - 80) + 40)
+            y = max(20, min(h - 20, int(cy + d.get("dy", 0.0))))
+            age = d["age"]
             if age < 3:
                 # Hot white core with neon cyan aura
                 cv.create_oval(x - 3, y - 3, x + 3, y + 3, fill="#22D3EE", outline="")
@@ -948,6 +1030,174 @@ class HistoryView(ctk.CTkScrollableFrame):
             fill="#EF4444" if self._buildup_observer_active else "#10B981",
             anchor="w"
         )
+
+    # ---- Fullscreen / Enlarged Figure Modal ----
+    def _open_enlarged_figure(self):
+        """Opens the active slide's visualizer or photo in a large modal window."""
+        if getattr(self, "_modal_window", None) is not None:
+            try:
+                self._modal_window.focus()
+                return
+            except Exception:
+                self._modal_window = None
+
+        slide = SLIDES[self.slide_index] if self.slide_index < len(SLIDES) else None
+        if slide is None:
+            return
+        fig = slide.get("figure", {})
+        kind = fig.get("kind", "none")
+        if kind == "none":
+            return
+
+        is_fa = LocalizationService.is_persian()
+        title = slide.get("title_fa" if is_fa else "title_en", "")
+        cap = fig.get("caption_fa" if is_fa else "caption_en", "")
+
+        modal = ctk.CTkToplevel(self)
+        modal.title(f"{LocalizationService.get('fig_enlarged_title')} — {title}")
+        modal.configure(fg_color="#0A0E1A")
+
+        sw = modal.winfo_screenwidth()
+        sh = modal.winfo_screenheight()
+        mw = max(800, min(1400, int(sw * 0.88)))
+        mh = max(560, min(900, int(sh * 0.86)))
+        mx = (sw - mw) // 2
+        my = max(20, (sh - mh) // 2 - 20)
+        modal.geometry(f"{mw}x{mh}+{mx}+{my}")
+        modal.minsize(720, 500)
+
+        header = ctk.CTkFrame(modal, fg_color="#111827", height=44, corner_radius=0)
+        header.pack(fill="x", side="top")
+
+        close_btn = ctk.CTkButton(
+            header, text=LocalizationService.get("fig_close"),
+            width=96, height=28,
+            fg_color="#EF4444", hover_color="#DC2626",
+            font=FontManager.get_persian_font(10, "bold") if is_fa else FontManager.get_number_font(10, "bold"),
+            command=self._close_enlarged_figure
+        )
+        close_btn.pack(side="right" if not is_fa else "left", padx=12, pady=8)
+
+        if kind == "buildup":
+            def _modal_toggle_observer():
+                self._toggle_buildup_observer()
+                self._update_buildup_btn_text()
+                status_txt = LocalizationService.get("hist_obs_active") if self._buildup_observer_active else LocalizationService.get("hist_obs_off")
+                obs_btn.configure(text=f"👁 {status_txt}")
+
+            status_txt = LocalizationService.get("hist_obs_active") if self._buildup_observer_active else LocalizationService.get("hist_obs_off")
+            obs_btn = ctk.CTkButton(
+                header, text=f"👁 {status_txt}",
+                width=160, height=28,
+                fg_color="#1E3A8A", hover_color="#2563EB",
+                font=FontManager.get_persian_font(9, "bold") if is_fa else FontManager.get_number_font(9, "bold"),
+                command=_modal_toggle_observer
+            )
+            obs_btn.pack(side="right" if not is_fa else "left", padx=6, pady=8)
+
+        title_lbl = ctk.CTkLabel(
+            header, text=title,
+            font=FontManager.get_persian_font(12, "bold") if is_fa else FontManager.get_number_font(12, "bold"),
+            text_color="#38BDF8"
+        )
+        title_lbl.pack(side="left" if not is_fa else "right", padx=16, pady=8)
+
+        content_frame = ctk.CTkFrame(modal, fg_color="#060911")
+        content_frame.pack(fill="both", expand=True, padx=12, pady=(8, 4))
+        content_frame.grid_columnconfigure(0, weight=1)
+        content_frame.grid_rowconfigure(0, weight=1)
+
+        if cap:
+            cap_lbl = ctk.CTkLabel(
+                modal, text=cap,
+                font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10),
+                text_color=_MUTED, wraplength=mw - 40, justify="center"
+            )
+            cap_lbl.pack(side="bottom", pady=(2, 8))
+
+        self._modal_window = modal
+        self._modal_canvas = None
+
+        if kind == "photo":
+            files = fig.get("files") or ([fig.get("file")] if fig.get("file") else [])
+            resolved = [(fn, p) for fn in files if (p := self._photo_path(fn)) is not None]
+            if resolved:
+                cols = 1 if len(resolved) == 1 else 2
+                max_w_per = (mw - 60) // cols
+                max_h_per = mh - 130
+                photo_holder = ctk.CTkScrollableFrame(content_frame, fg_color="transparent")
+                photo_holder.pack(fill="both", expand=True)
+                for c in range(cols):
+                    photo_holder.grid_columnconfigure(c, weight=1)
+                for i, (_fn, p) in enumerate(resolved):
+                    with Image.open(p) as im:
+                        im = im.convert("RGB")
+                        scale = min(max_w_per / im.width, max_h_per / im.height)
+                        pw = max(1, int(im.width * scale))
+                        ph = max(1, int(im.height * scale))
+                        im = im.resize((pw, ph), Image.LANCZOS)
+                        p_photo = ctk.CTkImage(light_image=im.copy(), dark_image=im.copy(), size=(pw, ph))
+                        self._photo_refs.append(p_photo)
+                    lbl = ctk.CTkLabel(photo_holder, text="", image=p_photo)
+                    lbl.grid(row=i // cols, column=i % cols, padx=8, pady=8)
+        elif kind in ("fringe", "worked_bench", "envelope", "interactive_fringe"):
+            modal_fig = Figure(figsize=(9.2, 5.0), dpi=115, facecolor=_CARD)
+            modal_ax = modal_fig.add_subplot(111, facecolor=_BG)
+            modal_ax.set_ylim(-0.06, 1.24)
+            modal_ax.grid(True, linestyle="--", alpha=0.3, color="#475569")
+            modal_ax.tick_params(colors="#94A3B8", labelsize=9)
+            for spine in modal_ax.spines.values():
+                spine.set_color("#334155")
+            modal_ax.set_xlabel(LocalizationService.get("plot_1d_xlabel"), color="#94A3B8", fontsize=10)
+            modal_ax.set_ylabel(LocalizationService.get("plot_1d_ylabel"), color="#94A3B8", fontsize=10)
+            modal_fig.subplots_adjust(bottom=0.18, top=0.92, left=0.10, right=0.96)
+            if self._mpl_line is not None:
+                x_d, y_d = self._mpl_line.get_data()
+                modal_ax.plot(x_d, y_d, color=self._mpl_line.get_color(), lw=2.8)
+                if self._mpl_fig and self._mpl_fig.axes:
+                    modal_ax.set_xlim(self._mpl_fig.axes[0].get_xlim())
+            m_canvas = FigureCanvasTkAgg(modal_fig, master=content_frame)
+            m_canvas.get_tk_widget().pack(fill="both", expand=True)
+            m_canvas.draw()
+        else:
+            m_cv = tk.Canvas(content_frame, bg=_BG, highlightthickness=0)
+            m_cv.pack(fill="both", expand=True)
+            self._modal_canvas = m_cv
+
+            def _draw_m():
+                if not m_cv.winfo_exists():
+                    return
+                cw = m_cv.winfo_width()
+                if cw < 50:
+                    cw = mw - 40
+                if kind in ("apparatus", "duel"):
+                    self._draw_apparatus(m_cv, cw, is_fa)
+                elif kind == "huygens":
+                    self._draw_huygens(m_cv, cw, animated=True, is_fa=is_fa)
+                elif kind == "triangle":
+                    self._draw_triangle(m_cv, cw, is_fa)
+                elif kind == "interference":
+                    self._draw_interference(m_cv, cw, is_fa)
+                elif kind == "buildup":
+                    self._draw_buildup(m_cv, cw, is_fa)
+
+            m_cv.after_idle(_draw_m)
+            m_cv.bind("<Configure>", lambda _e: _draw_m())
+
+        modal.bind("<Escape>", lambda _e: self._close_enlarged_figure())
+        modal.protocol("WM_DELETE_WINDOW", self._close_enlarged_figure)
+
+    def _close_enlarged_figure(self):
+        """Closes the enlarged modal window and restores primary canvas drawing."""
+        self._modal_canvas = None
+        if getattr(self, "_modal_window", None) is not None:
+            try:
+                self._modal_window.destroy()
+            except Exception:
+                pass
+            self._modal_window = None
+        if self._canvas is not None and self._canvas.winfo_exists():
+            self._redraw_canvas()
 
     # ---- 7. Historical Photo Loader ----
     def _photo_path(self, fname: str) -> Optional[str]:
@@ -972,21 +1222,23 @@ class HistoryView(ctk.CTkScrollableFrame):
             n = len(resolved)
             cols = 1 if n == 1 else 2
             base_max_w = 720 if self.is_presentation_mode else 560
-            max_h = (420 if self.is_presentation_mode else 300) if n == 1 else (
-                200 if self.is_presentation_mode else 160)
+            max_h = (440 if self.is_presentation_mode else 320) if n == 1 else (
+                260 if self.is_presentation_mode else 200)
             per_img_max_w = base_max_w if n == 1 else int(base_max_w / cols)
             for c in range(cols):
                 self.fig_holder.grid_columnconfigure(c, weight=1)
             for i, (_fname, path) in enumerate(resolved):
                 with Image.open(path) as im:
                     im = im.convert("RGB")
-                    w = min(per_img_max_w, im.width)
-                    h = int(im.height * (w / im.width))
-                    h = min(h, max_h)
+                    # Proportional aspect-ratio scaling (never squashes portrait photos)
+                    scale = min(per_img_max_w / im.width, max_h / im.height)
+                    w = max(1, int(im.width * scale))
+                    h = max(1, int(im.height * scale))
                     im = im.resize((w, h), Image.LANCZOS)
                     photo = CTkImage(light_image=im.copy(), dark_image=im.copy(), size=(w, h))
                     self._photo_refs.append(photo)
-                lbl = ctk.CTkLabel(self.fig_holder, text="", image=photo)
+                lbl = ctk.CTkLabel(self.fig_holder, text="", image=photo, cursor="hand2")
+                lbl.bind("<Button-1>", lambda _e: self._open_enlarged_figure())
                 lbl.grid(row=i // cols, column=i % cols, padx=4, pady=6, sticky="n")
             cap = fig.get("caption_fa", "") if is_fa else fig.get("caption_en", "")
             self.caption_label.configure(text=cap)
@@ -1139,4 +1391,9 @@ class HistoryView(ctk.CTkScrollableFrame):
         self.caption_label.configure(
             font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10)
         )
+        if hasattr(self, "expand_btn"):
+            self.expand_btn.configure(
+                text=LocalizationService.get("fig_expand"),
+                font=FontManager.get_persian_font(9, "bold") if is_fa else FontManager.get_number_font(9, "bold")
+            )
         self.show_slide(self.slide_index)

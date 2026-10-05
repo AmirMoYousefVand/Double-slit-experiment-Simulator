@@ -234,6 +234,8 @@ function renderHistorySlide(index) {
                     img.src = `/assets/images/history/${encodeURIComponent(fname)}`;
                     img.alt = fname;
                     img.className = 'photo-preview';
+                    img.title = isFa ? 'برای بزرگ‌نمایی کلیک کنید ⛶' : 'Click to enlarge ⛶';
+                    img.onclick = () => openDiagramLightbox();
                     grid.appendChild(img);
                 }
                 mediaWrapper.appendChild(grid);
@@ -313,6 +315,8 @@ function createVisualCanvas() {
     const cv = document.createElement('canvas');
     cv.className = 'canvas-visual';
     cv.height = 360;
+    cv.title = currentLang === 'fa' ? 'برای بزرگ‌نمایی کلیک کنید ⛶' : 'Click to enlarge ⛶';
+    cv.onclick = () => openDiagramLightbox();
     return cv;
 }
 
@@ -601,14 +605,73 @@ function toggleFullscreen() {
 function handleKeyboardShortcuts(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
+        e.preventDefault();
         nextSlide();
-    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
         prevSlide();
     } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
         toggleFullscreen();
     } else if (e.key === 'Escape') {
+        const lightbox = document.getElementById('diagram-lightbox');
+        if (lightbox && lightbox.style.display !== 'none') {
+            closeDiagramLightbox();
+            return;
+        }
         if (document.fullscreenElement) document.exitFullscreen();
+    }
+}
+
+function openDiagramLightbox() {
+    const lightbox = document.getElementById('diagram-lightbox');
+    const mediaWrapper = document.getElementById('diagram-media-wrapper');
+    const titleEl = document.getElementById('lightbox-title');
+    const bodyEl = document.getElementById('lightbox-body');
+    const capEl = document.getElementById('lightbox-caption');
+    const slideTitle = document.getElementById('slide-title-text');
+    const slideCaption = document.getElementById('diagram-caption-text');
+
+    if (!lightbox || !mediaWrapper) return;
+
+    titleEl.textContent = slideTitle ? slideTitle.textContent : '';
+    capEl.textContent = slideCaption ? slideCaption.textContent : '';
+    bodyEl.innerHTML = '';
+
+    const photos = mediaWrapper.querySelectorAll('img');
+    if (photos.length > 0) {
+        photos.forEach(img => {
+            const clone = document.createElement('img');
+            clone.src = img.src;
+            clone.alt = img.alt;
+            bodyEl.appendChild(clone);
+        });
+    } else {
+        const canvases = mediaWrapper.querySelectorAll('canvas');
+        if (canvases.length > 0) {
+            const src = canvases[0];
+            const clone = document.createElement('canvas');
+            clone.width = src.width || src.clientWidth || 800;
+            clone.height = src.height || src.clientHeight || 450;
+            const ctx = clone.getContext('2d');
+            ctx.drawImage(src, 0, 0);
+            bodyEl.appendChild(clone);
+        }
+    }
+
+    lightbox.style.display = 'flex';
+}
+
+function closeDiagramLightbox(e) {
+    if (e && e.target && e.target.closest('.lightbox-content') && !e.target.closest('button')) {
+        return;
+    }
+    const lightbox = document.getElementById('diagram-lightbox');
+    if (lightbox) {
+        lightbox.style.display = 'none';
+        const bodyEl = document.getElementById('lightbox-body');
+        if (bodyEl) bodyEl.innerHTML = '';
     }
 }
 
