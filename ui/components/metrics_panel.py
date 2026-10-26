@@ -43,6 +43,7 @@ class MetricsPanel(ctk.CTkFrame):
             ("missing_orders", "Missing: None", "#A78BFA", 1, 0),
             ("detected_hits", "Hits: N = 0", "#4ADE80", 1, 1),
             ("chi_square", "χ²_red = 1.00", "#F472B6", 1, 2),
+            ("fringe_shift", "Δy_s = 0.00 mm", "#E879F9", 1, 3),
         ]
 
         self._create_widgets()
@@ -215,3 +216,14 @@ class MetricsPanel(ctk.CTkFrame):
             self.labels["chi_square"].configure(text=f"χ² = {c2_red:.2f} ({qual:.0f}%)")
         else:
             self.labels["chi_square"].configure(text="χ² = Ready")
+
+        # 8. Fringe Shift Δy_shift & Fringe Count ΔN (from transparent slab)
+        if features.get("slab_enabled", False):
+            shift_mm = features.get("fringe_shift_y_mm", 0.0)
+            shift_n = features.get("fringe_shift_count_N", 0.0)
+            sign_str = "+" if shift_mm >= 0 else ""
+            self.labels["fringe_shift"].configure(
+                text=f"Δy_s = {sign_str}{shift_mm:.2f} mm ({shift_n:+.1f}N)"
+            )
+        else:
+            self.labels["fringe_shift"].configure(text="Δy_s = 0.00 mm (Off)")

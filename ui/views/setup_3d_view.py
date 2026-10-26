@@ -41,6 +41,11 @@ class Setup3DView(ctk.CTkFrame):
         self.which_way_active = False
         self.is_quantum = False
         self.particle_category = ParticleCategory.PHOTON
+        self.pre_barrier_enabled = True
+        self.slab_enabled = False
+        self.slab_thickness_um = 10.0
+        self.slab_refractive_index = 1.50
+        self.slab_slit = "slit1"
 
         # Zoom and camera tracking
         self.zoom_level = 1.0
@@ -301,7 +306,12 @@ class Setup3DView(ctk.CTkFrame):
         particle_category: ParticleCategory = ParticleCategory.PHOTON,
         is_quantum: bool = False,
         quantum_hits_y: Optional[List[float]] = None,
-        quantum_hits_z: Optional[List[float]] = None
+        quantum_hits_z: Optional[List[float]] = None,
+        pre_barrier_enabled: bool = True,
+        slab_enabled: bool = False,
+        slab_thickness_um: float = 10.0,
+        slab_refractive_index: float = 1.50,
+        slab_slit: str = "slit1"
     ):
         """
         Reconstructs the 3D scene elements: source (laser/electron gun/oven),
@@ -315,6 +325,11 @@ class Setup3DView(ctk.CTkFrame):
         self.which_way_active = which_way_active
         self.particle_category = particle_category
         self.is_quantum = is_quantum
+        self.pre_barrier_enabled = pre_barrier_enabled
+        self.slab_enabled = slab_enabled
+        self.slab_thickness_um = slab_thickness_um
+        self.slab_refractive_index = slab_refractive_index
+        self.slab_slit = slab_slit
 
         # Preserve current user camera angle and zoom
         curr_elev = self.ax.elev if hasattr(self.ax, "elev") else self.default_elev
@@ -391,12 +406,8 @@ class Setup3DView(ctk.CTkFrame):
         self.ax.add_collection3d(Poly3DCollection(src_faces, facecolors=housing_col, edgecolors="#38BDF8", linewidths=1.2, alpha=0.9))
         self.ax.text(x_source - src_len_x/2, 0, z1 + 1.5, src_title, color="#38BDF8", fontsize=7, weight="bold", ha="center", fontproperties=FontManager.get_mpl_persian_prop(7) if is_fa else FontManager.get_mpl_number_prop(7))
 
-        # Beam from source to slits
-        self.ax.plot([x_source, 0], [0, -d_mm/2], [0, 0], color=laser_hex, lw=1.5, alpha=0.7)
-        self.ax.plot([x_source, 0], [0, +d_mm/2], [0, 0], color=laser_hex, lw=1.5, alpha=0.7)
-
         # ----------------------------------------------------------------------
-        # 2. 3D Double-Slit Barrier Plate (at X = 0)
+        # 1B. Spatial Coherence Single-Slit Pre-Barrier S0 (at X = x_source * 0.48)
         # ----------------------------------------------------------------------
         barrier_plate_y = y_span_mm * 0.95
         barrier_plate_z = z_span_mm * 0.95
@@ -405,6 +416,40 @@ class Setup3DView(ctk.CTkFrame):
         y_s1 = -d_mm / 2.0
         y_s2 = +d_mm / 2.0
         half_a = max(a_mm / 2.0, 0.05)
+
+        if self.pre_barrier_enabled:
+            x_pre = x_source * 0.48
+            s0_half_a = max(half_a * 1.1, 0.08)
+            pre_panels = [
+                # Left wing
+                [[x_pre, -barrier_plate_y, -barrier_plate_z], [x_pre, -s0_half_a, -barrier_plate_z],
+                 [x_pre, -s0_half_a, barrier_plate_z], [x_pre, -barrier_plate_y, barrier_plate_z]],
+                # Right wing
+                [[x_pre, s0_half_a, -barrier_plate_z], [x_pre, barrier_plate_y, -barrier_plate_z],
+                 [x_pre, barrier_plate_y, barrier_plate_z], [x_pre, s0_half_a, barrier_plate_z]],
+                # Top block
+                [[x_pre, -s0_half_a, slit_h_mm / 2], [x_pre, s0_half_a, slit_h_mm / 2],
+                 [x_pre, s0_half_a, barrier_plate_z], [x_pre, -s0_half_a, barrier_plate_z]],
+                # Bottom block
+                [[x_pre, -s0_half_a, -barrier_plate_z], [x_pre, s0_half_a, -barrier_plate_z],
+                 [x_pre, s0_half_a, -slit_h_mm / 2], [x_pre, -s0_half_a, -slit_h_mm / 2]],
+            ]
+            self.ax.add_collection3d(Poly3DCollection(pre_panels, facecolors="#334155", edgecolors="#64748B", linewidths=0.7, alpha=0.9))
+            self.ax.text(x_pre, 0, slit_h_mm / 2 + 1.5, "S₀", color="#38BDF8", fontsize=7.5, weight="bold", ha="center")
+
+            # Beam 1: Laser to S0
+            self.ax.plot([x_source, x_pre], [0, 0], [0, 0], color=laser_hex, lw=2.0, alpha=0.85)
+            # Beams 2 & 3: Coherent diverging beams S0 -> S1 and S0 -> S2
+            self.ax.plot([x_pre, 0], [0, y_s1], [0, 0], color=laser_hex, lw=1.4, alpha=0.75)
+            self.ax.plot([x_pre, 0], [0, y_s2], [0, 0], color=laser_hex, lw=1.4, alpha=0.75)
+        else:
+            # Direct beam from source to slits
+            self.ax.plot([x_source, 0], [0, -d_mm/2], [0, 0], color=laser_hex, lw=1.5, alpha=0.7)
+            self.ax.plot([x_source, 0], [0, +d_mm/2], [0, 0], color=laser_hex, lw=1.5, alpha=0.7)
+
+        # ----------------------------------------------------------------------
+        # 2. 3D Double-Slit Barrier Plate (at X = 0)
+        # ----------------------------------------------------------------------
 
         barrier_panels = [
             # Left wing
@@ -427,6 +472,32 @@ class Setup3DView(ctk.CTkFrame):
 
         self.ax.text(0, y_s1, slit_h_mm/2 + 1.5, "S₁", color="#00E676", fontsize=8, weight="bold", ha="center")
         self.ax.text(0, y_s2, slit_h_mm/2 + 1.5, "S₂", color="#00E676", fontsize=8, weight="bold", ha="center")
+
+        # ----------------------------------------------------------------------
+        # 2B. External Optical Slab (Transparent Plate in Beam Path)
+        # ----------------------------------------------------------------------
+        if self.slab_enabled:
+            y_target = y_s1 if self.slab_slit == "slit1" else y_s2
+            t_cad = min(max(self.slab_thickness_um * 0.0018 * L, 0.015 * L), 0.045 * L)
+            w_slab_3d = max(half_a * 2.8, 0.45)
+            h_slab_3d = slit_h_mm * 0.85
+            xs0, xs1 = 0.012 * L, 0.012 * L + t_cad
+            ys0, ys1 = y_target - w_slab_3d / 2, y_target + w_slab_3d / 2
+            zs0, zs1 = -h_slab_3d / 2, h_slab_3d / 2
+
+            slab_faces = [
+                [[xs0, ys0, zs0], [xs1, ys0, zs0], [xs1, ys1, zs0], [xs0, ys1, zs0]],
+                [[xs0, ys0, zs1], [xs1, ys0, zs1], [xs1, ys1, zs1], [xs0, ys1, zs1]],
+                [[xs0, ys0, zs0], [xs1, ys0, zs0], [xs1, ys0, zs1], [xs0, ys0, zs1]],
+                [[xs0, ys1, zs0], [xs1, ys1, zs0], [xs1, ys1, zs1], [xs0, ys1, zs1]],
+                [[xs0, ys0, zs0], [xs0, ys1, zs0], [xs0, ys1, zs1], [xs0, ys0, zs1]],
+                [[xs1, ys0, zs0], [xs1, ys1, zs0], [xs1, ys1, zs1], [xs1, ys0, zs1]],
+            ]
+            self.ax.add_collection3d(Poly3DCollection(
+                slab_faces, facecolors="#00E5FF", edgecolors="#38BDF8", linewidths=1.0, alpha=0.45
+            ))
+            slab_lbl = f"SLAB (t={self.slab_thickness_um:.1f}µm, n={self.slab_refractive_index:.2f})"
+            self.ax.text(xs0 + t_cad / 2, y_target, zs1 + 1.8, slab_lbl, color="#00F0FF", fontsize=6.5, weight="bold", ha="center")
 
         # ----------------------------------------------------------------------
         # 3. 3D Detector Screen with Surface Fringes (at X = L) - High Resolution Vectorized

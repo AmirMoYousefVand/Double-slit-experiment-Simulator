@@ -30,7 +30,12 @@ class ObjExporter:
         screen_distance_m: float,
         which_way_active: bool,
         intensity_1d: np.ndarray,
-        base_rgb: Tuple[int, int, int]
+        base_rgb: Tuple[int, int, int],
+        pre_barrier_enabled: bool = True,
+        slab_enabled: bool = False,
+        slab_thickness_um: float = 10.0,
+        slab_refractive_index: float = 1.50,
+        slab_slit: str = "slit1"
     ) -> Dict[str, Any]:
         """
         Exports the 3D scene to an OBJ file, companion MTL file, and screen texture PNG.
@@ -105,6 +110,14 @@ class ObjExporter:
                 f_mtl.write("Kd 1.0 0.84 0.0\n")
                 f_mtl.write("Ke 1.0 0.84 0.0\n")
                 f_mtl.write("d 0.85\n\n")
+
+                # Transparent Glass Slab Material
+                f_mtl.write("newmtl Material_GlassSlab\n")
+                f_mtl.write("Ka 0.05 0.25 0.35\n")
+                f_mtl.write("Kd 0.10 0.70 0.95\n")
+                f_mtl.write("Ks 0.90 0.90 0.90\n")
+                f_mtl.write("Ns 60.0\n")
+                f_mtl.write("d 0.45\n\n")
 
                 # Detector Material
                 f_mtl.write("newmtl Material_Detector\n")
@@ -222,9 +235,29 @@ class ObjExporter:
                 # A. Laser / Particle Gun Housing
                 write_box("Source_Housing", x_src - src_len, x_src, -src_half_y, src_half_y, -src_half_z, src_half_z, "Material_Source")
 
-                # B. Incident Laser Beams (from source aperture to slits)
-                write_cylinder("Source_Beam_To_S1", [x_src, 0.0, 0.0], [-t_bar, y_s1, 0.0], r_beam, "Material_Beam")
-                write_cylinder("Source_Beam_To_S2", [x_src, 0.0, 0.0], [-t_bar, y_s2, 0.0], r_beam, "Material_Beam")
+                # B. Pre-Barrier & Incident Beams
+                if pre_barrier_enabled:
+                    x_pre = x_src * 0.48
+                    t_pre = t_bar * 0.9
+                    s0_half_a = max(half_a * 1.1, 0.002 * L)
+                    # Left wing of pre-barrier
+                    write_box("PreBarrier_LeftWing", x_pre - t_pre, x_pre, -y_span, -s0_half_a, -z_span, z_span, "Material_Barrier")
+                    # Right wing
+                    write_box("PreBarrier_RightWing", x_pre - t_pre, x_pre, s0_half_a, y_span, -z_span, z_span, "Material_Barrier")
+                    # Top block
+                    write_box("PreBarrier_TopBlock", x_pre - t_pre, x_pre, -s0_half_a, s0_half_a, slit_h / 2.0, z_span, "Material_Barrier")
+                    # Bottom block
+                    write_box("PreBarrier_BottomBlock", x_pre - t_pre, x_pre, -s0_half_a, s0_half_a, -z_span, -slit_h / 2.0, "Material_Barrier")
+
+                    # Incident Beam from source to S0
+                    write_cylinder("Beam_Source_To_S0", [x_src, 0.0, 0.0], [x_pre - t_pre, 0.0, 0.0], r_beam * 1.1, "Material_Beam")
+                    # Coherent diverging beams from S0 to S1 & S2
+                    write_cylinder("Beam_S0_To_S1", [x_pre, 0.0, 0.0], [-t_bar, y_s1, 0.0], r_beam * 0.9, "Material_Beam")
+                    write_cylinder("Beam_S0_To_S2", [x_pre, 0.0, 0.0], [-t_bar, y_s2, 0.0], r_beam * 0.9, "Material_Beam")
+                else:
+                    # Direct incident beams from source aperture to double slits
+                    write_cylinder("Source_Beam_To_S1", [x_src, 0.0, 0.0], [-t_bar, y_s1, 0.0], r_beam, "Material_Beam")
+                    write_cylinder("Source_Beam_To_S2", [x_src, 0.0, 0.0], [-t_bar, y_s2, 0.0], r_beam, "Material_Beam")
 
                 # C. Double Slit Barrier Plate (5 clean disjoint non-overlapping panels)
                 # 1. Left Wing
@@ -237,6 +270,13 @@ class ObjExporter:
                 write_box("Barrier_TopBlock", -t_bar, 0.0, y_s1 - half_a, y_s2 + half_a, slit_h / 2.0, z_span, "Material_Barrier")
                 # 5. Bottom Block below slits
                 write_box("Barrier_BottomBlock", -t_bar, 0.0, y_s1 - half_a, y_s2 + half_a, -z_span, -slit_h / 2.0, "Material_Barrier")
+
+                # C2. Transparent Optical Slab in Front of Slit
+                if slab_enabled:
+                    y_target = y_s1 if slab_slit == "slit1" else y_s2
+                    t_cad = min(max(slab_thickness_um * 0.0018 * L, 0.012 * L), 0.045 * L)
+                    w_slab_3d = max(half_a * 2.8, 0.015 * L)
+                    write_box("Optical_Slab", 0.01 * L, 0.01 * L + t_cad, y_target - w_slab_3d / 2.0, y_target + w_slab_3d / 2.0, -slit_h / 2.0, slit_h / 2.0, "Material_GlassSlab")
 
                 # D. Detector Screen with Texture UV mapping
                 f_obj.write("o Detector_Screen\n")

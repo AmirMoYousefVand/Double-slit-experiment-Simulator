@@ -13,6 +13,11 @@ class OpticalParameters:
     screen_distance_L_m: float = 1.0   # Distance to detector screen (L)
     refractive_index_n: float = 1.000  # Medium refractive index (n)
     intensity_I0: float = 1.0          # Peak normalized intensity
+    pre_barrier_enabled: bool = True   # Single-slit spatial coherence barrier S0
+    slab_enabled: bool = False         # External optical object (glass plate / thin film)
+    slab_thickness_um: float = 10.0    # Slab thickness in micrometers (t)
+    slab_refractive_index: float = 1.50 # Slab refractive index (n_slab)
+    slab_slit: str = "slit1"           # Which slit is covered: "slit1" (upper) | "slit2" (lower)
 
     @property
     def medium_wavelength_m(self) -> float:
@@ -23,6 +28,22 @@ class OpticalParameters:
     def wave_number_k(self) -> float:
         """Wavenumber k = 2 * pi / lambda_med"""
         return (2.0 * np.pi) / self.medium_wavelength_m
+
+    @property
+    def slab_optical_path_difference_m(self) -> float:
+        """Extra optical path difference ΔOPD = (n_slab - n) * t in meters."""
+        if not self.slab_enabled:
+            return 0.0
+        n_med = max(self.refractive_index_n, 1e-6)
+        t_m = self.slab_thickness_um * 1e-6
+        return (self.slab_refractive_index - n_med) * t_m
+
+    @property
+    def slab_phase_shift_rad(self) -> float:
+        """Phase delay δ = 2*pi/λ_0 * ΔOPD introduced by the slab."""
+        if not self.slab_enabled or self.wavelength_m <= 0:
+            return 0.0
+        return (2.0 * np.pi / self.wavelength_m) * self.slab_optical_path_difference_m
 
 
 def fringe_spacing_mm(wavelength_nm: float, slit_distance_mm: float,
@@ -45,6 +66,31 @@ def wavelength_nm_from_fringe_spacing(dy_mm: float, slit_distance_mm: float,
     dy_m = dy_mm * 1e-3
     d_m = slit_distance_mm * 1e-3
     return (dy_m * n * d_m / screen_distance_m) * 1e9
+
+
+def slab_fringe_shift_mm(slab_thickness_um: float, slab_refractive_index: float,
+                         slit_distance_mm: float, screen_distance_m: float,
+                         refractive_index: float = 1.0, slit: str = "slit1") -> float:
+    """Calculates fringe shift Δy_shift in mm caused by a transparent slab: Δy = (n_slab - n)*t*L / (n*d)."""
+    if slit_distance_mm <= 0 or screen_distance_m <= 0:
+        return 0.0
+    n = max(refractive_index, 1e-6)
+    delta_opd_m = (slab_refractive_index - n) * (slab_thickness_um * 1e-6)
+    d_m = slit_distance_mm * 1e-3
+    sign = 1.0 if slit == "slit1" else -1.0
+    return sign * (delta_opd_m * screen_distance_m / (n * d_m)) * 1000.0
+
+
+def slab_fringe_shift_count(slab_thickness_um: float, slab_refractive_index: float,
+                            wavelength_nm: float, refractive_index: float = 1.0,
+                            slit: str = "slit1") -> float:
+    """Calculates number of shifted fringes ΔN = (n_slab - n)*t / λ_0."""
+    if wavelength_nm <= 0:
+        return 0.0
+    n = max(refractive_index, 1e-6)
+    delta_opd_m = (slab_refractive_index - n) * (slab_thickness_um * 1e-6)
+    sign = 1.0 if slit == "slit1" else -1.0
+    return sign * delta_opd_m / (wavelength_nm * 1e-9)
 
 
 class ClassicalEngine:
@@ -93,10 +139,15 @@ class ClassicalEngine:
         # Thus argument u = (a * sin_theta) / lambda_med
         diffraction_factor = np.sinc((a * sin_theta) / lambda_med) ** 2
 
-        # Double-slit interference factor cos^2(alpha)
+        # Double-slit interference factor cos^2(alpha +/- delta/2)
         # alpha = (pi * d / lambda_med) * sin_theta
         alpha = (np.pi * d * sin_theta) / lambda_med
-        interference_factor = np.cos(alpha) ** 2
+        if self.params.slab_enabled:
+            delta = self.params.slab_phase_shift_rad
+            sign = 1.0 if self.params.slab_slit == "slit1" else -1.0
+            interference_factor = np.cos(alpha - sign * delta / 2.0) ** 2
+        else:
+            interference_factor = np.cos(alpha) ** 2
 
         return I0 * diffraction_factor * interference_factor
 
@@ -144,18 +195,36 @@ class ClassicalEngine:
         # Central diffraction envelope width between first minima: 2 * (lambda * L) / a
         central_envelope_width_m = (2.0 * lambda_med * L) / a if a > 0 else 0.0
 
-        # Theoretical interference maxima positions: y_m = m * (lambda * L) / d
+        # Theoretical interference maxima positions: y_m
+        # With optical slab: d * sin(theta) - sign * ΔOPD_med = m * lambda_med
         orders = np.arange(-max_order, max_order + 1)
-        # Using exact angle: d * sin(theta) = m * lambda => sin(theta) = m * lambda / d
-        # y = L * tan(theta) = L * (sin(theta) / sqrt(1 - sin^2(theta)))
         valid_orders = []
         maxima_y = []
+
+        delta_opd = p.slab_optical_path_difference_m
+        delta_phase = p.slab_phase_shift_rad
+        sign = 1.0 if p.slab_slit == "slit1" else -1.0
+        n_med = max(p.refractive_index_n, 1e-6)
+        delta_opd_med = (delta_opd / n_med) if p.slab_enabled else 0.0
+
         for m in orders:
-            sin_th = (m * lambda_med) / d
+            if d > 0:
+                sin_th = (m * lambda_med + (sign * delta_opd_med if p.slab_enabled else 0.0)) / d
+            else:
+                sin_th = 2.0
             if abs(sin_th) < 0.999:
                 y = L * (sin_th / np.sqrt(1.0 - sin_th ** 2))
                 maxima_y.append(y)
                 valid_orders.append(int(m))
+
+        # Fringe shift from optical slab: Halliday & Resnick formula
+        # Δy = (n_slab - n) * t * L / (n * d)
+        if p.slab_enabled and d > 0:
+            fringe_shift_y_m = sign * (delta_opd_med * L) / d
+            fringe_shift_count_N = sign * delta_opd / max(p.wavelength_m, 1e-12)
+        else:
+            fringe_shift_y_m = 0.0
+            fringe_shift_count_N = 0.0
 
         # Theoretical envelope zeros (single-slit diffraction minima):
         # a * sin(theta) = p * lambda (p != 0)
@@ -197,5 +266,16 @@ class ClassicalEngine:
             "envelope_zeros_y_m": np.array(envelope_zeros_y),
             "missing_orders": missing_orders,
             "ratio_d_over_a": ratio,
-            "visibility": visibility
+            "visibility": visibility,
+            "pre_barrier_enabled": p.pre_barrier_enabled,
+            "slab_enabled": p.slab_enabled,
+            "slab_thickness_um": p.slab_thickness_um,
+            "slab_refractive_index": p.slab_refractive_index,
+            "slab_slit": p.slab_slit,
+            "slab_opd_m": delta_opd if p.slab_enabled else 0.0,
+            "slab_phase_shift_rad": delta_phase if p.slab_enabled else 0.0,
+            "slab_phase_shift_deg": np.degrees(delta_phase) if p.slab_enabled else 0.0,
+            "fringe_shift_y_m": fringe_shift_y_m,
+            "fringe_shift_y_mm": fringe_shift_y_m * 1000.0,
+            "fringe_shift_count_N": fringe_shift_count_N,
         }

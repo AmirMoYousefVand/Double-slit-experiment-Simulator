@@ -254,6 +254,28 @@ class DocxEquationExporter:
                 sub_text=f"Δy = ({format_length(optical_params.wavelength_m)} × {L_m:.2f} m) / ({n:.3f} × {d_mm:.3f} mm) = {format_length(dy_m)}"
             )
 
+            # --- Formula 3B: Halliday & Resnick Thin Slab Fringe Shift ---
+            omml_slab = (
+                '<m:r><m:t>Δ</m:t></m:r><m:sSub><m:e><m:r><m:t>y</m:t></m:r></m:e><m:sub><m:r><m:t>shift</m:t></m:r></m:sub></m:sSub><m:r><m:t> = </m:t></m:r>'
+                '<m:f><m:num><m:r><m:t>(n_slab - n) · t · L</m:t></m:r></m:num><m:den><m:r><m:t>n · d</m:t></m:r></m:den></m:f>'
+                '<m:r><m:t>  |  ΔN = </m:t></m:r>'
+                '<m:f><m:num><m:r><m:t>(n_slab - n) · t</m:t></m:r></m:num><m:den><m:r><m:t>λ</m:t></m:r></m:den></m:f>'
+            )
+            title_slab = "D. Halliday & Resnick: Transparent Plate Fringe Displacement" if not is_persian else "د. مبانی هالیدی: تیغهٔ شفاف و جابه‌جایی نوارها"
+            narr_slab = "Inserting a transparent slab of thickness t and index n_slab shifts the central interference fringe by (n_slab - n)*t*L / (n*d)." if not is_persian else "قرار دادن تیغه‌ای به ضخامت t و ضریب شکست n_slab در مسیر یکی از پرتوها، فریزهای تداخل را به اندازه (n_slab - n)tL/(nd) جابه‌جا می‌کند."
+            shift_mm = features.get("fringe_shift_y_mm", 0.0)
+            shift_N = features.get("fringe_shift_count_N", 0.0)
+            if getattr(optical_params, "slab_enabled", False):
+                sub_slab = f"Slab Active: t = {getattr(optical_params, 'slab_thickness_um', 0.0):.2f} µm, n_slab = {getattr(optical_params, 'slab_refractive_index', 1.50):.3f} => Δy_shift = {shift_mm:+.2f} mm ({shift_N:+.2f} fringes)" if not is_persian else f"تیغه فعال: ضخامت {getattr(optical_params, 'slab_thickness_um', 0.0):.2f} میکرومتر، ضریب شکست {getattr(optical_params, 'slab_refractive_index', 1.50):.3f} => جابه‌جایی نوارها: {shift_mm:+.2f} میلی‌متر ({shift_N:+.2f} نوار)"
+            else:
+                sub_slab = "Slab Inactive (t = 0) => Δy_shift = 0.00 mm (No displacement)" if not is_persian else "تیغه غیرفعال است (t = ۰) => جابه‌جایی نوارها صفر است."
+            add_equation_section(
+                title=title_slab,
+                narrative=narr_slab,
+                omml_body=omml_slab,
+                sub_text=sub_slab
+            )
+
             # --- Formula 4: Fraunhofer Diffraction & Missing Orders ---
             omml_4 = (
                 '<m:r><m:t>I(y) = </m:t></m:r>'
@@ -267,7 +289,7 @@ class DocxEquationExporter:
             ratio = d_mm / max(a_mm, 1e-4)
             miss = features.get("missing_orders", [])
             miss_txt = "m = ±" + ", ±".join([str(abs(m)) for m in miss if m > 0][:4]) if miss else ("None" if not is_persian else "هیچ")
-            title_4 = "D. Fraunhofer Diffraction Envelope & Missing Orders" if not is_persian else "د. پوش پراش فرانهوفر و مراتب تداخلی غایب"
+            title_4 = "E. Fraunhofer Diffraction Envelope & Missing Orders" if not is_persian else "هـ. پوش پراش فرانهوفر و مراتب تداخلی غایب"
             narr_4 = "The physical double-slit pattern is modulated by the single-slit diffraction envelope. Missing orders occur when d/a equals the ratio of orders." if not is_persian else "طرح تداخلی دو شکاف توسط پوش پراش تک‌شکاف تعدیل می‌شود. مراتب غایب زمانی رخ می‌دهند که نسبت d/a برابر نسبت مرتبه‌ها گردد."
             sub_4 = f"Central Envelope Width W = 2λL/a = {format_length(env_m)} | Ratio d/a = {ratio:.2f} => Missing Orders: {miss_txt}" if not is_persian else f"پهنای پوش مرکزی W = 2λL/a = {format_length(env_m)} | نسبت d/a = {ratio:.2f} => مراتب غایب: {miss_txt}"
             add_equation_section(

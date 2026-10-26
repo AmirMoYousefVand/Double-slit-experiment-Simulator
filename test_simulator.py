@@ -1,12 +1,14 @@
 """
 Comprehensive Test and Verification Suite for Young's Double-Slit Simulator.
-34 tests covering: classical Fraunhofer optics and analytical features,
+38 tests covering: classical Fraunhofer optics and analytical features,
 missing-order detection, de Broglie wavelengths, observer collapse,
 Monte Carlo performance, wavelength color mapping, CSV / OBJ / DOCX / ZIP
 exports, FontManager, the 3D / schematic / calculations / history / guide
 views, strict bilingual purity, full GUI wiring, the Flask web presentation
 service, numeric-entry clamping, screen-span adaptation, slide navigation,
-and the bidirectional fringe-spacing ↔ wavelength conversion.
+the bidirectional fringe-spacing ↔ wavelength conversion, optical slab
+Halliday fringe displacement, intensity profile shifts, pre-barrier S0
+spatial coherence, and slab 3D CAD/CSV export integration.
 """
 
 import sys
@@ -192,8 +194,8 @@ def test_3d_obj_export():
         assert "mtllib test_apparatus.mtl" in content
         assert "o Barrier_LeftWing" in content
         assert "o Detector_Screen" in content
-        assert "o Source_Beam_To_S1" in content, "Incident source beam 1 missing"
-        assert "o Source_Beam_To_S2" in content, "Incident source beam 2 missing"
+        assert ("o Beam_Source_To_S0" in content or "o Source_Beam_To_S1" in content), "Incident source beam missing"
+        assert ("o Beam_S0_To_S1" in content or "o Source_Beam_To_S1" in content), "Beam to S1 missing"
         assert "o Ray_Path_r1" in content, "Cylindrical ray r1 missing"
         assert "o Ray_Path_r2" in content, "Cylindrical ray r2 missing"
         assert "vt " in content, "UV mapping coordinates missing"
@@ -1101,9 +1103,215 @@ def test_fringe_spacing_roundtrip():
     assert wavelength_nm_from_fringe_spacing(1.0, 0.25, 0.0) == 0.0
     print("       -> Δy <-> λ round-trip (with n and zero-division guards) verified!")
 
+def test_optical_slab_halliday_shift():
+    print("[35/38] Testing Optical Slab Halliday Shift & Phase Calculations...")
+    from physics.classical_engine import (
+        OpticalParameters, ClassicalEngine, slab_fringe_shift_mm, slab_fringe_shift_count
+    )
+
+    # 1. Halliday textbook scenario: t = 10 um, n_slab = 1.50, air n=1.0, d = 0.25 mm, L = 1.0 m, λ = 632.8 nm
+    # ΔOPD = (1.5 - 1.0) * 10e-6 = 5e-6 m = 5.0 µm
+    # Δy_shift = (5e-6 * 1.0) / (1.0 * 0.25e-3) = 0.02 m = 20.0 mm
+    # ΔN = 5e-6 / 632.8e-9 = 7.9014 fringes
+    p = OpticalParameters(
+        wavelength_m=632.8e-9,
+        slit_distance_d_m=0.25e-3,
+        screen_distance_L_m=1.0,
+        refractive_index_n=1.0,
+        slab_enabled=True,
+        slab_thickness_um=10.0,
+        slab_refractive_index=1.50,
+        slab_slit="slit1"
+    )
+    eng = ClassicalEngine(p)
+    feat = eng.get_analytical_features()
+
+    assert abs(feat["slab_opd_m"] - 5.0e-6) < 1e-12, feat["slab_opd_m"]
+    assert abs(feat["fringe_shift_y_mm"] - 20.0) < 1e-9, feat["fringe_shift_y_mm"]
+    assert abs(feat["fringe_shift_count_N"] - (5e-6 / 632.8e-9)) < 1e-6, feat["fringe_shift_count_N"]
+
+    # Verify helper functions match analytical features
+    h_shift = slab_fringe_shift_mm(10.0, 1.50, 0.25, 1.0, 1.0, "slit1")
+    assert abs(h_shift - 20.0) < 1e-9, h_shift
+    h_count = slab_fringe_shift_count(10.0, 1.50, 632.8, 1.0, "slit1")
+    assert abs(h_count - 7.90139) < 1e-3, h_count
+
+    # Inverting slit to slit2 must reverse sign of displacement
+    p.slab_slit = "slit2"
+    eng2 = ClassicalEngine(p)
+    feat2 = eng2.get_analytical_features()
+    assert abs(feat2["fringe_shift_y_mm"] - (-20.0)) < 1e-9, feat2["fringe_shift_y_mm"]
+    assert abs(feat2["fringe_shift_count_N"] - (-7.90139)) < 1e-3, feat2["fringe_shift_count_N"]
+
+    # Disabling slab must return zero shift
+    p.slab_enabled = False
+    eng3 = ClassicalEngine(p)
+    feat3 = eng3.get_analytical_features()
+    assert feat3["fringe_shift_y_mm"] == 0.0
+    assert feat3["fringe_shift_count_N"] == 0.0
+    assert feat3["slab_phase_shift_deg"] == 0.0
+    print("       -> Halliday ΔOPD, Δy_shift, and ΔN calculations verified cleanly!")
+
+def test_slab_interference_profile_shift():
+    print("[36/38] Testing Interference Pattern Profile Shift under Slab...")
+    from physics.classical_engine import OpticalParameters, ClassicalEngine
+
+    # Thin slab: t = 1.0 µm, n_slab = 1.5 => ΔOPD = 0.5 µm
+    # Shift = 0.5e-6 * 1.0 / 0.25e-3 = 2.0 mm
+    p = OpticalParameters(
+        wavelength_m=632.8e-9,
+        slit_distance_d_m=0.25e-3,
+        slit_width_a_m=0.04e-3,
+        screen_distance_L_m=1.0,
+        refractive_index_n=1.0,
+        slab_enabled=True,
+        slab_thickness_um=1.0,
+        slab_refractive_index=1.50,
+        slab_slit="slit1"
+    )
+    eng = ClassicalEngine(p)
+    feat = eng.get_analytical_features()
+    assert abs(feat["fringe_shift_y_mm"] - 2.0) < 1e-9
+
+    # Peak order m=0 in maxima_y_m must shift to y = +2.0 mm (with exact paraxial geometry)
+    idx_0 = feat["maxima_orders"].index(0)
+    y0_mm = feat["maxima_y_m"][idx_0] * 1000.0
+    assert abs(y0_mm - 2.0000) < 0.005, f"m=0 peak expected ~2.0mm, got {y0_mm}"
+
+    # Verify pure interference factor argmax sits at +2.0 mm
+    y_fine = np.linspace(1.8e-3, 2.2e-3, 2000)
+    sin_th = eng.compute_sin_theta(y_fine)
+    alpha = (np.pi * p.slit_distance_d_m * sin_th) / p.medium_wavelength_m
+    delta = p.slab_phase_shift_rad
+    interf = np.cos(alpha - delta / 2.0) ** 2
+    peak_y_mm = y_fine[np.argmax(interf)] * 1000.0
+    assert abs(peak_y_mm - 2.0) < 0.001, f"Peak expected 2.0 mm, got {peak_y_mm}"
+    print("       -> Interference factor phase offset and peak displacement verified!")
+
+def test_pre_barrier_and_slab_gui_wiring():
+    print("[37/38] Testing Pre-Barrier S0 & Slab UI State Propagation...")
+    from ui.main_window import MainWindow
+
+    app = MainWindow()
+    app.update_idletasks()
+    try:
+        cp = app.control_panel
+
+        # Verify initial states
+        assert app.optical_params.pre_barrier_enabled is True
+        assert app.setup_schematic_view.pre_barrier_enabled is True
+        assert app.setup_3d_view.pre_barrier_enabled is True
+
+        assert app.optical_params.slab_enabled is False
+        assert app.setup_schematic_view.slab_enabled is False
+        assert app.setup_3d_view.slab_enabled is False
+
+        # Toggle pre-barrier off
+        cp.pre_barrier_switch.deselect()
+        cp._handle_pre_barrier_toggle()
+        assert app.optical_params.pre_barrier_enabled is False
+        assert app.setup_schematic_view.pre_barrier_enabled is False
+        assert app.setup_3d_view.pre_barrier_enabled is False
+
+        # Toggle slab on
+        cp.slab_switch.select()
+        cp._handle_slab_toggle()
+        assert app.optical_params.slab_enabled is True
+        assert app.setup_schematic_view.slab_enabled is True
+        assert app.setup_3d_view.slab_enabled is True
+
+        # Change slab thickness to 15 µm
+        cp.set_parameter_value("slab_thickness_um", 15.0)
+        assert abs(app.optical_params.slab_thickness_um - 15.0) < 1e-9
+        assert abs(app.setup_schematic_view.slab_thickness_um - 15.0) < 1e-9
+        assert abs(app.setup_3d_view.slab_thickness_um - 15.0) < 1e-9
+
+        # Verify metrics readout tile has fringe shift
+        shift_text = app.metrics_panel.labels["fringe_shift"].cget("text")
+        assert "Δy_s" in shift_text and "mm" in shift_text, shift_text
+
+        # Verify Calculations card updated
+        calc_sub = app.calculations_view.lbl_card_halliday_sub.cget("text")
+        assert "15.00" in calc_sub or "۱۵" in calc_sub, calc_sub
+
+        # Reset elements
+        cp.reset_elements()
+        assert app.optical_params.pre_barrier_enabled is True
+        assert app.optical_params.slab_enabled is False
+        print("       -> Pre-barrier and slab switches, sliders, metrics & cards verified!")
+    finally:
+        app.destroy()
+
+def test_slab_export_pipelines():
+    print("[38/38] Testing CSV & 3D OBJ Export Pipelines with Slab & Pre-Barrier...")
+    from utils.export_service import ExportService
+    from utils.obj_exporter import ObjExporter
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # 1. CSV metadata export test
+        csv_path = os.path.join(tmpdir, "test_slab.csv")
+        res_csv = ExportService.export_csv(
+            filepath=csv_path,
+            y_grid_m=np.linspace(-0.01, 0.01, 50),
+            intensity_theory=np.ones(50),
+            quantum_histogram=np.zeros(50),
+            params_dict={
+                "wavelength_m": 632.8e-9, "slit_distance_d_m": 0.25e-3,
+                "slit_width_a_m": 0.04e-3, "screen_distance_L_m": 1.0,
+                "pre_barrier_enabled": True, "slab_enabled": True,
+                "slab_thickness_um": 12.5, "slab_refractive_index": 1.52,
+                "slab_slit": "slit1"
+            },
+            stats_dict={
+                "fringe_shift_y_m": 0.026, "fringe_shift_y_mm": 26.0,
+                "fringe_shift_count_N": 10.27
+            },
+            total_hits=100
+        )
+        assert res_csv["success"] is True
+        with open(csv_path, "r", encoding="utf-8-sig") as f:
+            content = f.read()
+            assert "# Pre-Barrier (S0) Spatial Coherence Active: True" in content
+            assert "# External Slab Active: True" in content
+            assert "12.50 um" in content
+            assert "26.0000 mm" in content
+
+        # 2. OBJ + MTL 3D export test
+        obj_path = os.path.join(tmpdir, "test_slab_3d.obj")
+        res_obj = ObjExporter.export_scene_to_obj(
+            filepath=obj_path,
+            wavelength_nm=632.8,
+            slit_distance_mm=0.25,
+            slit_width_mm=0.04,
+            screen_distance_m=1.0,
+            which_way_active=False,
+            intensity_1d=np.ones(100),
+            base_rgb=(255, 66, 0),
+            pre_barrier_enabled=True,
+            slab_enabled=True,
+            slab_thickness_um=12.5,
+            slab_refractive_index=1.52,
+            slab_slit="slit1"
+        )
+        assert res_obj["success"] is True
+        with open(obj_path, "r", encoding="utf-8") as f:
+            obj_content = f.read()
+            assert "o PreBarrier_LeftWing" in obj_content
+            assert "o Beam_Source_To_S0" in obj_content
+            assert "o Optical_Slab" in obj_content
+            assert "usemtl Material_GlassSlab" in obj_content
+
+        mtl_path = os.path.join(tmpdir, "test_slab_3d.mtl")
+        with open(mtl_path, "r", encoding="utf-8") as f:
+            mtl_content = f.read()
+            assert "newmtl Material_GlassSlab" in mtl_content
+            assert "d 0.45" in mtl_content
+
+        print("       -> CSV headers and 3D OBJ/MTL pre-barrier + slab meshes verified!")
+
 if __name__ == "__main__":
     print("=" * 70)
-    print("RUNNING EXTENDED DOUBLE-SLIT SIMULATOR 34-TEST VERIFICATION SUITE")
+    print("RUNNING EXTENDED DOUBLE-SLIT SIMULATOR 38-TEST VERIFICATION SUITE")
     print("=" * 70)
 
     test_classical_optics()
@@ -1140,6 +1348,10 @@ if __name__ == "__main__":
     test_guide_view_configure_redraw()
     test_photo_aspect_ratio_scaling()
     test_fringe_spacing_roundtrip()
+    test_optical_slab_halliday_shift()
+    test_slab_interference_profile_shift()
+    test_pre_barrier_and_slab_gui_wiring()
+    test_slab_export_pipelines()
     print("=" * 70)
-    print("ALL 34 VERIFICATION TESTS PASSED SUCCESSFULLY! (100% PASS)")
+    print("ALL 38 VERIFICATION TESTS PASSED SUCCESSFULLY! (100% PASS)")
     print("=" * 70)

@@ -511,7 +511,12 @@ class MainWindow(ctk.CTk):
             screen_distance_m=self.optical_params.screen_distance_L_m,
             which_way_active=self.quantum_engine.which_way_active if self.mode == "quantum" else False,
             particle_category=self.quantum_engine.particle.category if self.mode == "quantum" else ParticleCategory.PHOTON,
-            is_quantum=(self.mode == "quantum")
+            is_quantum=(self.mode == "quantum"),
+            pre_barrier_enabled=self.optical_params.pre_barrier_enabled,
+            slab_enabled=self.optical_params.slab_enabled,
+            slab_thickness_um=self.optical_params.slab_thickness_um,
+            slab_refractive_index=self.optical_params.slab_refractive_index,
+            slab_slit=self.optical_params.slab_slit
         )
 
         # 4. Update 3D Apparatus View
@@ -527,7 +532,12 @@ class MainWindow(ctk.CTk):
             particle_category=self.quantum_engine.particle.category if self.mode == "quantum" else ParticleCategory.PHOTON,
             is_quantum=(self.mode == "quantum"),
             quantum_hits_y=self.quantum_engine.hits_y if self.mode == "quantum" else None,
-            quantum_hits_z=self.quantum_engine.hits_z if self.mode == "quantum" else None
+            quantum_hits_z=self.quantum_engine.hits_z if self.mode == "quantum" else None,
+            pre_barrier_enabled=self.optical_params.pre_barrier_enabled,
+            slab_enabled=self.optical_params.slab_enabled,
+            slab_thickness_um=self.optical_params.slab_thickness_um,
+            slab_refractive_index=self.optical_params.slab_refractive_index,
+            slab_slit=self.optical_params.slab_slit
         )
 
         # 5. Update Calculations & Equations View
@@ -608,27 +618,43 @@ class MainWindow(ctk.CTk):
             self.profile_1d_view.clear_quantum_data()
             self._recalculate_classical_field()
 
-    def _on_optical_param_change(self, key: str, value: float):
+    def _on_optical_param_change(self, key: str, value: Any):
         """Handles slider/entry changes in the control panel (defensively clamped)."""
         from utils.numeric_input import clamp
-        value = clamp(key, float(value))
-        if key == "wavelength_nm":
-            self.optical_params.wavelength_m = value * 1e-9
-        elif key == "slit_distance_mm":
-            self.optical_params.slit_distance_d_m = value * 1e-3
-        elif key == "slit_width_mm":
-            self.optical_params.slit_width_a_m = value * 1e-3
-        elif key == "screen_distance_m":
-            self.optical_params.screen_distance_L_m = value
-        elif key == "refractive_index":
-            self.optical_params.refractive_index_n = value
+        if key == "pre_barrier_enabled":
+            self.optical_params.pre_barrier_enabled = bool(value)
+        elif key == "slab_enabled":
+            self.optical_params.slab_enabled = bool(value)
+        elif key == "slab_thickness_um":
+            self.optical_params.slab_thickness_um = clamp(key, float(value))
+        elif key == "slab_refractive_index":
+            self.optical_params.slab_refractive_index = clamp(key, float(value))
+        elif key == "slab_slit":
+            self.optical_params.slab_slit = str(value)
+        else:
+            value = clamp(key, float(value))
+            if key == "wavelength_nm":
+                self.optical_params.wavelength_m = value * 1e-9
+            elif key == "slit_distance_mm":
+                self.optical_params.slit_distance_d_m = value * 1e-3
+            elif key == "slit_width_mm":
+                self.optical_params.slit_width_a_m = value * 1e-3
+            elif key == "screen_distance_m":
+                self.optical_params.screen_distance_L_m = value
+            elif key == "refractive_index":
+                self.optical_params.refractive_index_n = value
 
         self.classical_engine.update_params(
             wavelength_m=self.optical_params.wavelength_m,
             slit_distance_d_m=self.optical_params.slit_distance_d_m,
             slit_width_a_m=self.optical_params.slit_width_a_m,
             screen_distance_L_m=self.optical_params.screen_distance_L_m,
-            refractive_index_n=self.optical_params.refractive_index_n
+            refractive_index_n=self.optical_params.refractive_index_n,
+            pre_barrier_enabled=self.optical_params.pre_barrier_enabled,
+            slab_enabled=self.optical_params.slab_enabled,
+            slab_thickness_um=self.optical_params.slab_thickness_um,
+            slab_refractive_index=self.optical_params.slab_refractive_index,
+            slab_slit=self.optical_params.slab_slit
         )
         self.quantum_engine.invalidate_cache()
         self._recalculate_classical_field()
@@ -644,6 +670,8 @@ class MainWindow(ctk.CTk):
         self.control_panel.set_parameter_value("slit_width_mm", DEFAULT_SLIT_WIDTH_MM)
         self.control_panel.set_parameter_value("screen_distance_m", DEFAULT_SCREEN_DISTANCE_M)
         self.control_panel.set_parameter_value("refractive_index", DEFAULT_REFRACTIVE_INDEX)
+        if hasattr(self.control_panel, "reset_elements"):
+            self.control_panel.reset_elements()
 
     # ==========================================================================
     # Quantum Callbacks

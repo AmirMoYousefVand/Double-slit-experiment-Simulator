@@ -82,6 +82,42 @@ class LocalizationService:
             "en": "Refractive Index (n):",
             "fa": f"{RLM}ضریب شکست محیط (n):{RLM}"
         },
+        "optics_elements_title": {
+            "en": "Optical Setup & Transparent Slab:",
+            "fa": f"{RLM}چیدمان اپتیکی و تیغهٔ شفاف:{RLM}"
+        },
+        "pre_barrier_switch": {
+            "en": "Single-Slit Pre-Barrier (S₀)",
+            "fa": f"{RLM}دیوار تک‌شکاف چشمه (S₀){RLM}"
+        },
+        "slab_switch": {
+            "en": "Transparent Slab in Beam Path",
+            "fa": f"{RLM}تیغهٔ شفاف در مسیر پرتو{RLM}"
+        },
+        "slab_target_slit": {
+            "en": "Target Slit:",
+            "fa": f"{RLM}شکاف هدف:{RLM}"
+        },
+        "slab_slit1_opt": {
+            "en": "S₁ (Upper Slit)",
+            "fa": f"{RLM}S₁ (شکاف بالا){RLM}"
+        },
+        "slab_slit2_opt": {
+            "en": "S₂ (Lower Slit)",
+            "fa": f"{RLM}S₂ (شکاف پایین){RLM}"
+        },
+        "slab_thickness": {
+            "en": "Slab Thickness (t):",
+            "fa": f"{RLM}ضخامت تیغه (t):{RLM}"
+        },
+        "slab_index": {
+            "en": "Slab Refractive Index (n):",
+            "fa": f"{RLM}ضریب شکست تیغه (n):{RLM}"
+        },
+        "slab_badge_disabled": {
+            "en": "Slab Inactive (Δy = 0)",
+            "fa": f"{RLM}تیغه غیرفعال است (Δy = ۰){RLM}"
+        },
         "presets_label": {
             "en": "Presets & Laboratory Standards:",
             "fa": f"{RLM}پیش‌فرض‌ها و نمونه‌های آزمایشگاهی:{RLM}"
@@ -268,6 +304,10 @@ class LocalizationService:
             "en": "Central Envelope Width:",
             "fa": f"{RLM}پهنای قله مرکزی پراش:{RLM}"
         },
+        "fringe_shift": {
+            "en": "Fringe Shift (Δy_shift):",
+            "fa": f"{RLM}جابه‌جایی نوارها (Δy_shift):{RLM}"
+        },
         "visibility": {
             "en": "Fringe Visibility (V):",
             "fa": f"{RLM}دیداری فرانژها / کنتراست (V):{RLM}"
@@ -392,21 +432,29 @@ class LocalizationService:
             "en": "3. Fringe Width / Spacing Formulation (Δy)",
             "fa": f"{RLM}۳. فاصله بین دو نوار روشن متوالی (پهنای فرانژ Δy){RLM}"
         },
+        "calc_card_halliday": {
+            "en": "4. Halliday & Resnick: Transparent Slab & Fringe Displacement",
+            "fa": f"{RLM}۴. مبانی هالیدی: تیغهٔ شفاف و جابه‌جایی نوارها{RLM}"
+        },
+        "calc_halliday_concept": {
+            "en": "Path difference increase: Δr = (n_slab - n)·t. The central bright fringe shifts to where total optical path difference is zero.",
+            "fa": f"{RLM}افزایش راه نوری: Δr = (n_slab - n)·t؛ نوار روشن مرکزی به نقطه‌ای منتقل می‌شود که اختلاف راه نوری کل صفر گردد.{RLM}"
+        },
         "calc_card4": {
-            "en": "4. Fraunhofer Diffraction Envelope & Missing Orders",
-            "fa": f"{RLM}۴. پوش پراش فرانهوفر و مراتب تداخلی غایب{RLM}"
+            "en": "5. Fraunhofer Diffraction Envelope & Missing Orders",
+            "fa": f"{RLM}۵. پوش پراش فرانهوفر و مراتب تداخلی غایب{RLM}"
         },
         "calc_card5": {
-            "en": "5. Quantum Mechanics & De Broglie Matter Waves",
-            "fa": f"{RLM}۵. مکانیک کوانتومی و رابطه امواج مادی دوبروی{RLM}"
+            "en": "6. Quantum Mechanics & De Broglie Matter Waves",
+            "fa": f"{RLM}۶. مکانیک کوانتومی و رابطه امواج مادی دوبروی{RLM}"
         },
         "calc_card6": {
-            "en": "6. Quantum Superposition vs Wavefunction Collapse",
-            "fa": f"{RLM}۶. برهم‌نهی کوانتومی در برابر فروپاشی تابع موج (اثر ناظر){RLM}"
+            "en": "7. Quantum Superposition vs Wavefunction Collapse",
+            "fa": f"{RLM}۷. برهم‌نهی کوانتومی در برابر فروپاشی تابع موج (اثر ناظر){RLM}"
         },
         "calc_card7": {
-            "en": "7. Interactive Point Inspector (Screen Position y)",
-            "fa": f"{RLM}۷. کاوشگر نقطه‌ای روی پرده (محاسبه دقیق در مختصات دلخواه y){RLM}"
+            "en": "8. Interactive Point Inspector (Screen Position y)",
+            "fa": f"{RLM}۸. کاوشگر نقطه‌ای روی پرده (محاسبه دقیق در مختصات دلخواه y){RLM}"
         },
         "inspector_slider": {
             "en": "Screen Position y:",

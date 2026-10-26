@@ -163,10 +163,43 @@ class CalculationsView(ctk.CTkScrollableFrame):
         self.lbl_card3_sub.pack(anchor="w", padx=12, pady=(0, 6))
 
         # ======================================================================
-        # CARD 4: Fraunhofer Diffraction Envelope & Missing Orders
+        # CARD 4: Halliday & Resnick Fundamentals — Thin Slab & Fringe Shift
+        # ======================================================================
+        card_halliday = self._create_card(
+            row=4,
+            loc_key="calc_card_halliday"
+        )
+        self.lbl_card_halliday_concept = ctk.CTkLabel(
+            card_halliday,
+            text=LocalizationService.get("calc_halliday_concept"),
+            font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10),
+            text_color="#94A3B8",
+            wraplength=640,
+            justify="right" if is_fa else "left"
+        )
+        self.lbl_card_halliday_concept.pack(anchor="e" if is_fa else "w", padx=12, pady=(2, 2))
+
+        self.lbl_card_halliday_formula = ctk.CTkLabel(
+            card_halliday,
+            text="Δr_extra = (n_slab - n)·t   =>   Δy_shift = (n_slab - n)·t·L / (n·d)   |   ΔN = (n_slab - n)·t / λ₀",
+            font=FontManager.get_number_font(11, "bold"),
+            text_color="#38BDF8"
+        )
+        self.lbl_card_halliday_formula.pack(anchor="w", padx=12, pady=(2, 2))
+
+        self.lbl_card_halliday_sub = ctk.CTkLabel(
+            card_halliday,
+            text="Slab Inactive (t = 0) => Δy_shift = 0.00 mm | Enable slab in control panel to observe fringe displacement.",
+            font=FontManager.get_number_font(11),
+            text_color="#E0E0E0"
+        )
+        self.lbl_card_halliday_sub.pack(anchor="w", padx=12, pady=(0, 6))
+
+        # ======================================================================
+        # CARD 5: Fraunhofer Diffraction Envelope & Missing Orders
         # ======================================================================
         card4 = self._create_card(
-            row=4,
+            row=5,
             loc_key="calc_card4"
         )
         self.lbl_card4_formula = ctk.CTkLabel(
@@ -186,10 +219,10 @@ class CalculationsView(ctk.CTkScrollableFrame):
         self.lbl_card4_sub.pack(anchor="w", padx=12, pady=(0, 6))
 
         # ======================================================================
-        # CARD 5: Quantum Mechanics & De Broglie Matter Waves
+        # CARD 6: Quantum Mechanics & De Broglie Matter Waves
         # ======================================================================
         card5 = self._create_card(
-            row=5,
+            row=6,
             loc_key="calc_card5"
         )
         self.lbl_card5_formula = ctk.CTkLabel(
@@ -212,10 +245,10 @@ class CalculationsView(ctk.CTkScrollableFrame):
         self.lbl_card5_sub.pack(anchor="w", padx=12, pady=(0, 6))
 
         # ======================================================================
-        # CARD 6: Quantum Superposition vs Wavefunction Collapse
+        # CARD 7: Quantum Superposition vs Wavefunction Collapse
         # ======================================================================
         card6 = self._create_card(
-            row=6,
+            row=7,
             loc_key="calc_card6"
         )
         self.lbl_card6_text = ctk.CTkLabel(
@@ -228,10 +261,10 @@ class CalculationsView(ctk.CTkScrollableFrame):
         self.lbl_card6_text.pack(anchor="w", padx=12, pady=(2, 2))
 
         # ======================================================================
-        # CARD 7: Interactive Real-Time Point Inspector
+        # CARD 8: Interactive Real-Time Point Inspector
         # ======================================================================
         inspector_card = ctk.CTkFrame(self, fg_color="#18181B", corner_radius=8, border_width=1, border_color="#3B82F6")
-        inspector_card.grid(row=7, column=0, padx=8, pady=(8, 16), sticky="ew")
+        inspector_card.grid(row=8, column=0, padx=8, pady=(8, 16), sticky="ew")
         inspector_card.grid_columnconfigure(0, weight=1)
 
         insp_header = ctk.CTkFrame(inspector_card, fg_color="transparent")
@@ -405,6 +438,14 @@ class CalculationsView(ctk.CTkScrollableFrame):
             )
             lbl.pack(anchor="e" if is_fa else "w")
 
+        if hasattr(self, "lbl_card_halliday_concept"):
+            self.lbl_card_halliday_concept.configure(
+                text=LocalizationService.get("calc_halliday_concept"),
+                font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10),
+                justify="right" if is_fa else "left"
+            )
+            self.lbl_card_halliday_concept.pack(anchor="e" if is_fa else "w")
+
         self.insp_title.configure(
             text=LocalizationService.get("calc_card7"),
             font=FontManager.get_persian_font(12, "bold") if is_fa else FontManager.get_number_font(12, "bold")
@@ -522,6 +563,32 @@ class CalculationsView(ctk.CTkScrollableFrame):
         self.lbl_card3_sub.configure(
             text=f"Δy = ({format_length(optical_params.wavelength_m)} × {L_m:.2f} m) / ({n:.3f} × {d_mm:.3f} mm) = {format_length(dy_m)}"
         )
+
+        # Card Halliday substitution (Thin slab fringe shift)
+        is_fa = LocalizationService.is_persian()
+        if optical_params.slab_enabled:
+            slit_name = ("S₁ (بالا)" if optical_params.slab_slit == "slit1" else "S₂ (پایین)") if is_fa else ("S₁ (Upper)" if optical_params.slab_slit == "slit1" else "S₂ (Lower)")
+            shift_mm = features.get("fringe_shift_y_mm", 0.0)
+            shift_N = features.get("fringe_shift_count_N", 0.0)
+            delta_opd_nm = features.get("slab_opd_m", 0.0) * 1e9
+            sign_str = "+" if shift_mm >= 0 else ""
+            if is_fa:
+                self.lbl_card_halliday_sub.configure(
+                    text=f"تیغه روی {slit_name}: t = {optical_params.slab_thickness_um:.2f} µm، n_slab = {optical_params.slab_refractive_index:.3f} | اختلاف راه نوری اضافه: ΔOPD = {delta_opd_nm:+.1f} nm\nجابه‌جایی نوارها روی پرده: Δy_shift = {sign_str}{shift_mm:.2f} mm | تعداد نوارهای جابه‌جاشده: ΔN = {sign_str}{shift_N:.2f} نوار"
+                )
+            else:
+                self.lbl_card_halliday_sub.configure(
+                    text=f"Slab on {slit_name}: t = {optical_params.slab_thickness_um:.2f} µm, n_slab = {optical_params.slab_refractive_index:.3f} | Extra OPD = {delta_opd_nm:+.1f} nm\nFringe Displacement on Screen: Δy_shift = {sign_str}{shift_mm:.2f} mm | Number of Fringes Shifted: ΔN = {sign_str}{shift_N:.2f} fringes"
+                )
+        else:
+            if is_fa:
+                self.lbl_card_halliday_sub.configure(
+                    text="تیغه نوری غیرفعال است (t = 0) => جابه‌جایی نوارها Δy_shift = 0.00 mm | برای مشاهده جابه‌جایی فریزها، تیغه را در پنل کنترل فعال کنید."
+                )
+            else:
+                self.lbl_card_halliday_sub.configure(
+                    text="Slab Inactive (t = 0) => Δy_shift = 0.00 mm | Enable slab in control panel to observe fringe displacement."
+                )
 
         # Card 4 substitution
         ratio = d_mm / max(a_mm, 1e-4)

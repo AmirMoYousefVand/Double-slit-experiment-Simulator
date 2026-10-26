@@ -27,6 +27,11 @@ DEFAULT_SLIT_WIDTH_MM = 0.04        # Width of each slit aperture (a)
 DEFAULT_SCREEN_DISTANCE_M = 1.0     # Distance from slit barrier to screen (L)
 DEFAULT_REFRACTIVE_INDEX = 1.000    # Air / Vacuum (n)
 DEFAULT_INTENSITY_I0 = 1.0          # Normalized peak intensity
+DEFAULT_PRE_BARRIER_ENABLED = True  # Primary single-slit coherence barrier S0
+DEFAULT_SLAB_ENABLED = False        # External transparent plate
+DEFAULT_SLAB_THICKNESS_UM = 10.0    # Slab thickness in micrometers (t)
+DEFAULT_SLAB_REFRACTIVE_INDEX = 1.50 # Slab index (n_slab)
+DEFAULT_SLAB_SLIT = "slit1"         # "slit1" (upper) | "slit2" (lower)
 
 # Slider Ranges & Parameter Limits
 PARAM_LIMITS = {
@@ -39,6 +44,8 @@ PARAM_LIMITS = {
     "screen_distance_m": {"min": 0.20, "max": 5.00, "step": 0.05, "default": 1.00},
     "refractive_index": {"min": 1.00, "max": 2.00, "step": 0.01, "default": 1.00},
     "emission_rate": {"min": 1, "max": 5000, "step": 10, "default": 200},
+    "slab_thickness_um": {"min": 0.0, "max": 50.0, "step": 0.5, "default": 10.0},
+    "slab_refractive_index": {"min": 1.00, "max": 2.50, "step": 0.01, "default": 1.50},
 }
 
 # Display decimals for manual numeric entry fields (matches step precision)
@@ -50,6 +57,8 @@ PARAM_DECIMALS = {
     "screen_distance_m": 2,
     "refractive_index": 3,
     "emission_rate": 0,
+    "slab_thickness_um": 2,
+    "slab_refractive_index": 3,
 }
 
 # ==============================================================================

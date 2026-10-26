@@ -60,8 +60,13 @@ class ControlPanel(ctk.CTkScrollableFrame):
             "slit_distance_mm": "mm",
             "slit_width_mm": "mm",
             "screen_distance_m": "m",
-            "refractive_index": ""
+            "refractive_index": "",
+            "slab_thickness_um": "µm",
+            "slab_refractive_index": ""
         }
+        self.pre_barrier_enabled: bool = True
+        self.slab_enabled: bool = False
+        self.slab_slit: str = "slit1"
 
         self.slider_configs = [
             ("wavelength_nm", "wavelength"),
@@ -216,7 +221,90 @@ class ControlPanel(ctk.CTkScrollableFrame):
 
             row_idx += 1
 
-        # 4. Reset Button
+        # 4. Optical Elements (Pre-Barrier S0 & External Slab)
+        self.elements_frame = ctk.CTkFrame(self, corner_radius=6, border_width=1, border_color="#27272A")
+        self.elements_frame.grid(row=row_idx, column=0, pady=(6, 4), sticky="ew")
+        self.elements_frame.grid_columnconfigure(0, weight=1)
+
+        elem_hdr = ctk.CTkFrame(self.elements_frame, fg_color="transparent")
+        elem_hdr.pack(fill="x", padx=8, pady=(4, 2))
+
+        self.elements_title = ctk.CTkLabel(
+            elem_hdr,
+            text=LocalizationService.get("optics_elements_title"),
+            font=FontManager.get_persian_font(11, "bold") if is_fa else FontManager.get_number_font(11, "bold"),
+            text_color="#38BDF8"
+        )
+        self.elements_title.pack(side="right" if is_fa else "left", anchor="e" if is_fa else "w")
+
+        # 4A. Pre-barrier S0 switch
+        pre_row = ctk.CTkFrame(self.elements_frame, fg_color="transparent")
+        pre_row.pack(fill="x", padx=8, pady=3)
+        self.pre_barrier_switch = ctk.CTkSwitch(
+            pre_row,
+            text=LocalizationService.get("pre_barrier_switch"),
+            command=self._handle_pre_barrier_toggle,
+            font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10),
+            progress_color="#38BDF8"
+        )
+        self.pre_barrier_switch.select()
+        self.pre_barrier_switch.pack(side="right" if is_fa else "left", anchor="e" if is_fa else "w")
+
+        # 4B. Slab switch
+        slab_row = ctk.CTkFrame(self.elements_frame, fg_color="transparent")
+        slab_row.pack(fill="x", padx=8, pady=(3, 4))
+        self.slab_switch = ctk.CTkSwitch(
+            slab_row,
+            text=LocalizationService.get("slab_switch"),
+            command=self._handle_slab_toggle,
+            font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10),
+            progress_color="#00E5FF"
+        )
+        self.slab_switch.deselect()
+        self.slab_switch.pack(side="right" if is_fa else "left", anchor="e" if is_fa else "w")
+
+        # 4C. Slab controls container (packed inside elements_frame when enabled)
+        self.slab_container = ctk.CTkFrame(self.elements_frame, fg_color="#18181B", corner_radius=6)
+
+        # Slit choice row
+        slit_row = ctk.CTkFrame(self.slab_container, fg_color="transparent")
+        slit_row.pack(fill="x", padx=6, pady=(4, 2))
+        self.slab_slit_label = ctk.CTkLabel(
+            slit_row,
+            text=LocalizationService.get("slab_target_slit"),
+            font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10)
+        )
+        self.slab_slit_label.pack(side="right" if is_fa else "left", padx=4)
+
+        slit_opts = [LocalizationService.get("slab_slit1_opt"), LocalizationService.get("slab_slit2_opt")]
+        self.slab_slit_menu = ctk.CTkOptionMenu(
+            slit_row,
+            values=slit_opts,
+            command=self._handle_slab_slit_select,
+            font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10),
+            dropdown_font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10),
+            height=24,
+            width=120
+        )
+        self.slab_slit_menu.set(slit_opts[0])
+        self.slab_slit_menu.pack(side="left" if is_fa else "right", padx=4)
+
+        # Thickness and Refractive index sliders inside slab_container
+        self._build_slab_param_slider("slab_thickness_um", "slab_thickness", self.slab_container, is_fa)
+        self._build_slab_param_slider("slab_refractive_index", "slab_index", self.slab_container, is_fa)
+
+        # Shift badge
+        self.slab_badge = ctk.CTkLabel(
+            self.slab_container,
+            text=LocalizationService.get("slab_badge_disabled"),
+            font=FontManager.get_number_font(10, "bold"),
+            text_color="#00F0FF"
+        )
+        self.slab_badge.pack(fill="x", padx=6, pady=(2, 6))
+
+        row_idx += 1
+
+        # 5. Reset Button
         self.reset_btn = ctk.CTkButton(
             self,
             text=LocalizationService.get("reset_defaults"),
@@ -230,6 +318,7 @@ class ControlPanel(ctk.CTkScrollableFrame):
 
         # Derived Δy slider range must follow the current d / L / n values
         self._refresh_fringe_spacing_slider()
+        self._update_slab_badge()
 
     def refresh_language(self):
         """Refreshes text, fonts, presets, and packing alignment on language toggle."""
@@ -276,6 +365,37 @@ class ControlPanel(ctk.CTkScrollableFrame):
             if param_key == "wavelength_nm" and hasattr(self, "color_swatch"):
                 self.color_swatch.pack(side="left" if is_fa else "right", padx=(4, 4))
 
+        if hasattr(self, "elements_title"):
+            self.elements_title.configure(
+                text=LocalizationService.get("optics_elements_title"),
+                font=FontManager.get_persian_font(11, "bold") if is_fa else FontManager.get_number_font(11, "bold")
+            )
+        if hasattr(self, "pre_barrier_switch"):
+            self.pre_barrier_switch.configure(
+                text=LocalizationService.get("pre_barrier_switch"),
+                font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10)
+            )
+        if hasattr(self, "slab_switch"):
+            self.slab_switch.configure(
+                text=LocalizationService.get("slab_switch"),
+                font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10)
+            )
+        if hasattr(self, "slab_slit_label"):
+            self.slab_slit_label.configure(
+                text=LocalizationService.get("slab_target_slit"),
+                font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10)
+            )
+        if hasattr(self, "slab_slit_menu"):
+            slit_opts = [LocalizationService.get("slab_slit1_opt"), LocalizationService.get("slab_slit2_opt")]
+            self.slab_slit_menu.configure(
+                values=slit_opts,
+                font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10),
+                dropdown_font=FontManager.get_persian_font(10) if is_fa else FontManager.get_number_font(10)
+            )
+            self.slab_slit_menu.set(slit_opts[0] if self.slab_slit == "slit1" else slit_opts[1])
+
+        self._update_slab_badge()
+
         self.reset_btn.configure(
             text=LocalizationService.get("reset_defaults"),
             font=FontManager.get_persian_font(12, "bold") if is_fa else FontManager.get_number_font(12, "bold")
@@ -286,7 +406,8 @@ class ControlPanel(ctk.CTkScrollableFrame):
         """Formats a parameter readout with unit (header value label)."""
         unit = {"wavelength_nm": "nm", "fringe_spacing_mm": "mm",
                 "slit_distance_mm": "mm", "slit_width_mm": "mm",
-                "screen_distance_m": "m", "refractive_index": ""}.get(key, "")
+                "screen_distance_m": "m", "refractive_index": "",
+                "slab_thickness_um": "µm", "slab_refractive_index": ""}.get(key, "")
         decimals = PARAM_DECIMALS.get(key, 2)
         return f"{value:.{decimals}f} {unit}".strip()
 
@@ -322,6 +443,7 @@ class ControlPanel(ctk.CTkScrollableFrame):
             if key in ("wavelength_nm", "slit_distance_mm", "screen_distance_m", "refractive_index"):
                 self._refresh_fringe_spacing_slider(current_wavelength=value if key == "wavelength_nm" else None)
 
+            self._update_slab_badge()
             self.on_param_change(key, value)
         finally:
             self._syncing = False
@@ -395,6 +517,7 @@ class ControlPanel(ctk.CTkScrollableFrame):
                 entry.delete(0, "end")
                 entry.insert(0, self._format_entry(key, clamped))
             entry.configure(border_color="#3F3F46")
+            self._update_slab_badge()
             self.on_param_change(key, clamped)
         finally:
             self._syncing = False
@@ -501,3 +624,142 @@ class ControlPanel(ctk.CTkScrollableFrame):
         if key in self.sliders:
             return float(self.sliders[key].get())
         raise KeyError(f"Unknown parameter: {key}")
+
+    # ==========================================================================
+    # Pre-Barrier & Transparent Slab Handlers
+    # ==========================================================================
+    def _build_slab_param_slider(self, param_key: str, loc_key: str, parent, is_fa: bool):
+        """Constructs compact parameter slider and entry inside the slab frame."""
+        cfg = PARAM_LIMITS[param_key]
+        sub_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        sub_frame.pack(fill="x", padx=4, pady=2)
+
+        header_row = ctk.CTkFrame(sub_frame, fg_color="transparent")
+        header_row.pack(fill="x", padx=4, pady=(2, 1))
+
+        param_title = ctk.CTkLabel(
+            header_row,
+            text=LocalizationService.get(loc_key),
+            font=FontManager.get_persian_font(10, "bold") if is_fa else FontManager.get_number_font(10, "bold")
+        )
+        param_title.pack(side="right" if is_fa else "left", anchor="e" if is_fa else "w")
+        self.param_title_labels[param_key] = (param_title, loc_key, header_row)
+
+        unit = self.units[param_key]
+        val_text = self._format_value(param_key, cfg["default"])
+        val_label = ctk.CTkLabel(
+            header_row,
+            text=val_text,
+            font=FontManager.get_number_font(10, "bold"),
+            text_color="#00F0FF"
+        )
+        val_label.pack(side="left" if is_fa else "right", anchor="w" if is_fa else "e")
+        self.value_labels[param_key] = val_label
+
+        slider = ctk.CTkSlider(
+            sub_frame,
+            from_=cfg["min"],
+            to=cfg["max"],
+            number_of_steps=max(int((cfg["max"] - cfg["min"]) / cfg["step"]), 1),
+            command=lambda val, k=param_key: self._handle_slider_change(k, val),
+            height=14
+        )
+        slider.set(cfg["default"])
+        slider.pack(fill="x", padx=4, pady=(1, 2))
+        self.sliders[param_key] = slider
+
+        entry_row = ctk.CTkFrame(sub_frame, fg_color="transparent")
+        entry_row.pack(fill="x", padx=4, pady=(0, 4))
+
+        entry = ctk.CTkEntry(
+            entry_row,
+            width=70,
+            height=22,
+            justify="center",
+            font=FontManager.get_number_font(10),
+            border_color="#3F3F46",
+            fg_color="#18181B"
+        )
+        entry.insert(0, self._format_entry(param_key, cfg["default"]))
+        entry.pack(side="left", padx=(0, 4))
+        entry.bind("<KeyRelease>", lambda _e, k=param_key: self._handle_entry_change(k, live=True))
+        entry.bind("<Return>", lambda _e, k=param_key: self._handle_entry_change(k, live=False))
+        entry.bind("<FocusOut>", lambda _e, k=param_key: self._handle_entry_change(k, live=False))
+        self.entries[param_key] = entry
+
+        unit_lbl = ctk.CTkLabel(
+            entry_row,
+            text=unit if unit else "—",
+            font=FontManager.get_number_font(9),
+            text_color="#9E9E9E"
+        )
+        unit_lbl.pack(side="left")
+
+        range_lbl = ctk.CTkLabel(
+            entry_row,
+            text=f"[{self._format_entry(param_key, cfg['min'])} … {self._format_entry(param_key, cfg['max'])}]",
+            font=FontManager.get_number_font(8),
+            text_color="#71717A"
+        )
+        range_lbl.pack(side="right")
+        self.range_labels[param_key] = range_lbl
+
+    def _handle_pre_barrier_toggle(self):
+        """Toggles primary spatial coherence single slit barrier S0."""
+        self.pre_barrier_enabled = bool(self.pre_barrier_switch.get())
+        self.on_param_change("pre_barrier_enabled", self.pre_barrier_enabled)
+
+    def _handle_slab_toggle(self):
+        """Enables/disables external transparent slab."""
+        self.slab_enabled = bool(self.slab_switch.get())
+        if self.slab_enabled:
+            self.slab_container.pack(fill="x", padx=4, pady=(2, 6))
+        else:
+            self.slab_container.pack_forget()
+        self._update_slab_badge()
+        self.on_param_change("slab_enabled", self.slab_enabled)
+
+    def _handle_slab_slit_select(self, choice: str):
+        """Selects which slit beam is covered by the transparent slab."""
+        slit = "slit1" if (choice.startswith("S₁") or "بالا" in choice or "Upper" in choice) else "slit2"
+        self.slab_slit = slit
+        self._update_slab_badge()
+        self.on_param_change("slab_slit", slit)
+
+    def _update_slab_badge(self):
+        """Refreshes live fringe displacement and fringe count readout on slab card."""
+        if not hasattr(self, "slab_badge"):
+            return
+        if not self.slab_enabled:
+            self.slab_badge.configure(text=LocalizationService.get("slab_badge_disabled"))
+            return
+        t_um = self._exact_values.get("slab_thickness_um", 10.0)
+        n_slab = self._exact_values.get("slab_refractive_index", 1.50)
+        d_mm = self._exact_values.get("slit_distance_mm", 0.25)
+        L_m = self._exact_values.get("screen_distance_m", 1.0)
+        n_med = self._exact_values.get("refractive_index", 1.0)
+        wl_nm = self._exact_values.get("wavelength_nm", 632.8)
+
+        from physics.classical_engine import slab_fringe_shift_mm, slab_fringe_shift_count
+        shift_mm = slab_fringe_shift_mm(t_um, n_slab, d_mm, L_m, n_med, self.slab_slit)
+        shift_N = slab_fringe_shift_count(t_um, n_slab, wl_nm, n_med, self.slab_slit)
+        sign_str = "+" if shift_mm >= 0 else ""
+        self.slab_badge.configure(
+            text=f"Δy_shift = {sign_str}{shift_mm:.2f} mm  (ΔN = {sign_str}{shift_N:.2f})"
+        )
+
+    def reset_elements(self):
+        """Resets pre-barrier and optical slab to defaults."""
+        self.pre_barrier_enabled = True
+        self.slab_enabled = False
+        self.slab_slit = "slit1"
+        if hasattr(self, "pre_barrier_switch"):
+            self.pre_barrier_switch.select()
+        if hasattr(self, "slab_switch"):
+            self.slab_switch.deselect()
+            if hasattr(self, "slab_container"):
+                self.slab_container.pack_forget()
+        self._update_slab_badge()
+        self.on_param_change("pre_barrier_enabled", True)
+        self.on_param_change("slab_enabled", False)
+        self.on_param_change("slab_slit", "slit1")

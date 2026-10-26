@@ -18,8 +18,10 @@ web presentation deck served by Flask.
 
 ### Classical Wave Optics
 - Exact Fraunhofer double-slit intensity distribution `I(θ) = I₀ cos²(β) sinc²(α)`
-- Live metrics: fringe spacing `Δy`, angular separation, maxima/minima angles, missing-order detection (`d/a` ratio)
-- Adjustable parameters: wavelength `λ` (380–780 nm), fringe spacing `Δy` (bidirectionally linked to λ via `Δy = λL/d` — moving either one updates the other live), slit separation `d`, slit width `a`, screen distance `L`, refractive index `n`
+- **Spatial coherence pre-barrier (S₀)**: single-slit primary barrier placed before double slits S₁/S₂ converts spatial source into a point coherent emitter in both 2D schematic and 3D apparatus
+- **External optical slab (transparent plate)**: insert a thin film/plate of custom thickness `t` (0–50 µm) and refractive index `n_slab` in front of either slit, causing real-time phase shift `δ` and fringe displacement `Δy_shift = (n_slab - n)·t·L / (n·d)` across 1D profile, 2D screen, 3D CAD, and quantum hits
+- Live metrics: fringe spacing `Δy`, fringe shift `Δy_shift`, shifted fringe count `ΔN`, angular separation, maxima/minima angles, missing-order detection (`d/a` ratio)
+- Adjustable parameters: wavelength `λ` (380–780 nm), fringe spacing `Δy` (bidirectionally linked to λ via `Δy = λL/d` — moving either one updates the other live), slit separation `d`, slit width `a`, screen distance `L`, refractive index `n`, slab thickness `t`, slab index `n_slab`
 - 6 laboratory presets: He-Ne Red, Argon-Ion Green, Violet Diode, Sodium D-Line, Underwater, High-Diffraction
 - Physically accurate color rendering (Dan Bruton wavelength → sRGB mapping)
 
@@ -36,7 +38,7 @@ web presentation deck served by Flask.
 | 1D Profile | High-performance Matplotlib intensity profile with peak annotation |
 | Schematic | 2D optical-bench layout showing wavefronts and path difference `Δr` |
 | 3D Setup | Interactive 3D apparatus with mouse rotation and wheel zoom |
-| Calculations | Step-by-step symbolic derivations with live numerical substitution |
+| Calculations | Step-by-step symbolic derivations with live numerical substitution + Halliday & Resnick fundamentals card |
 | History | Animated classroom slide deck on Young's 1801 experiment + quiz |
 | Guide | Interactive software tutorial for every feature |
 

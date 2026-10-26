@@ -79,6 +79,14 @@ class ExportService:
                 writer.writerow([f"# Central Envelope Width: {stats_dict.get('central_envelope_width_m', 0.0):.6e} m ({format_length(stats_dict.get('central_envelope_width_m', 0.0))})"])
                 writer.writerow([f"# Missing Interference Orders: {stats_dict.get('missing_orders', 'None')}"])
                 writer.writerow([f"# Michelson Fringe Visibility (V): {stats_dict.get('visibility', 1.0):.4f}"])
+                writer.writerow([f"# Pre-Barrier (S0) Spatial Coherence Active: {params_dict.get('pre_barrier_enabled', True)}"])
+                writer.writerow([f"# External Slab Active: {params_dict.get('slab_enabled', False)}"])
+                if params_dict.get('slab_enabled', False):
+                    writer.writerow([f"# Slab Thickness (t): {params_dict.get('slab_thickness_um', 0.0):.2f} um"])
+                    writer.writerow([f"# Slab Refractive Index (n_slab): {params_dict.get('slab_refractive_index', 1.50):.4f}"])
+                    writer.writerow([f"# Slab Slit Location: {params_dict.get('slab_slit', 'slit1')}"])
+                    writer.writerow([f"# Halliday Fringe Shift (Delta_y_shift): {stats_dict.get('fringe_shift_y_m', 0.0):.6e} m ({stats_dict.get('fringe_shift_y_mm', 0.0):.4f} mm)"])
+                    writer.writerow([f"# Number of Fringes Shifted (Delta_N): {stats_dict.get('fringe_shift_count_N', 0.0):.4f}"])
                 writer.writerow([f"# Which-Way Observer Active: {params_dict.get('which_way_observer_active', False)}"])
                 writer.writerow([f"# Total Accumulated Quantum Hits (N): {total_hits}"])
                 writer.writerow(["# =============================================================================="])
@@ -375,7 +383,12 @@ class ExportService:
         particle_category: Any = None,
         is_quantum: bool = False,
         target_y_offset: float = 0.0,
-        is_persian: bool = False
+        is_persian: bool = False,
+        pre_barrier_enabled: bool = True,
+        slab_enabled: bool = False,
+        slab_thickness_um: float = 10.0,
+        slab_refractive_index: float = 1.50,
+        slab_slit: str = "slit1"
     ) -> Dict[str, Any]:
         """
         Renders the complete 2D apparatus setup, expanding Huygens wavelets, rays,
@@ -412,15 +425,27 @@ class ExportService:
             src_lbl = "LASER" if not is_persian else LocalizationService.reshape_text("لیزر چشمه")
             ax.text((src_x0 + src_x1)/2.0, 0, src_lbl, color="#38BDF8", fontsize=8, weight="bold", ha="center", va="center", fontproperties=fprop_small)
 
-            # Beams from source aperture to barrier plate at X = 0
-            ax.plot([src_x1, 0], [0, 10.0], color=laser_hex, lw=2.0, alpha=0.85, zorder=3)
-            ax.plot([src_x1, 0], [0, -10.0], color=laser_hex, lw=2.0, alpha=0.85, zorder=3)
-
-            # 3. Double-Slit Barrier Plate at X = 0
+            # 3. Double-Slit Barrier Plate at X = 0 (and Pre-barrier S0 at X = -7.0)
             y_s1 = +10.0
             y_s2 = -10.0
             half_slit = 1.6
             bar_w = 2.4
+
+            if pre_barrier_enabled:
+                pre_x = -7.0
+                bar_thick_pre = 2.0
+                ax.add_patch(plt.Rectangle((pre_x, 3.0), bar_thick_pre, 33.0, facecolor="#475569", edgecolor="#64748B", lw=1.0, zorder=5))
+                ax.add_patch(plt.Rectangle((pre_x, -36.0), bar_thick_pre, 33.0, facecolor="#475569", edgecolor="#64748B", lw=1.0, zorder=5))
+                ax.text(pre_x + 1.0, 37.0, "S₀", color="#38BDF8", fontsize=9, weight="bold", ha="center")
+                # Beam source -> S0
+                ax.plot([src_x1, pre_x], [0, 0], color=laser_hex, lw=2.2, alpha=0.9, zorder=3)
+                # Beams S0 -> S1, S2
+                ax.plot([pre_x + bar_thick_pre, 0], [0, y_s1], color=laser_hex, lw=1.6, alpha=0.8, zorder=3)
+                ax.plot([pre_x + bar_thick_pre, 0], [0, y_s2], color=laser_hex, lw=1.6, alpha=0.8, zorder=3)
+            else:
+                # Beams from source aperture directly to barrier plate at X = 0
+                ax.plot([src_x1, 0], [0, y_s1], color=laser_hex, lw=2.0, alpha=0.85, zorder=3)
+                ax.plot([src_x1, 0], [0, y_s2], color=laser_hex, lw=2.0, alpha=0.85, zorder=3)
 
             # Barrier sections
             ax.add_patch(plt.Rectangle((-bar_w, y_s1 + half_slit), bar_w, 36.0 - (y_s1 + half_slit), facecolor="#334155", edgecolor="#64748B", lw=1.2, zorder=5))
@@ -430,6 +455,15 @@ class ExportService:
             ax.text(-bar_w/2.0, 38.0, "BARRIER" if not is_persian else LocalizationService.reshape_text("مانع"), color="#94A3B8", fontsize=8, weight="bold", ha="center", fontproperties=fprop_small)
             ax.text(-4.0, y_s1, "S₁", color="#00E676", fontsize=9, weight="bold", ha="right", va="center")
             ax.text(-4.0, y_s2, "S₂", color="#00E676", fontsize=9, weight="bold", ha="right", va="center")
+
+            # External Transparent Optical Slab
+            if slab_enabled:
+                y_target_slab = y_s1 if slab_slit == "slit1" else y_s2
+                w_slab_sch = min(max(slab_thickness_um * 0.25, 3.0), 8.0)
+                ax.add_patch(plt.Rectangle((1.5, y_target_slab - 3.5), w_slab_sch, 7.0,
+                                           facecolor="#0284C7", edgecolor="#38BDF8", lw=1.2, alpha=0.85, zorder=6))
+                ax.text(1.5 + w_slab_sch + 1.2, y_target_slab, f"t={slab_thickness_um:.1f}µm\nn={slab_refractive_index:.2f}",
+                        color="#38BDF8", fontsize=7, weight="bold", va="center", zorder=7)
 
             # 4. Expanding Circular Huygens Wavelets
             theta = np.linspace(-np.pi/2.5, np.pi/2.5, 120)
@@ -638,7 +672,12 @@ class ExportService:
                     screen_distance_m=optical_params.screen_distance_L_m,
                     which_way_active=which_way_active,
                     intensity_1d=intensity_theory,
-                    base_rgb=rgb
+                    base_rgb=rgb,
+                    pre_barrier_enabled=getattr(optical_params, "pre_barrier_enabled", True),
+                    slab_enabled=getattr(optical_params, "slab_enabled", False),
+                    slab_thickness_um=getattr(optical_params, "slab_thickness_um", 10.0),
+                    slab_refractive_index=getattr(optical_params, "slab_refractive_index", 1.50),
+                    slab_slit=getattr(optical_params, "slab_slit", "slit1")
                 ))
 
                 # 4. Publication Figures (300 DPI)
@@ -668,7 +707,12 @@ class ExportService:
                     particle_category=quantum_engine.particle.category if is_quantum and quantum_engine is not None else None,
                     is_quantum=is_quantum,
                     target_y_offset=target_y_offset,
-                    is_persian=is_persian
+                    is_persian=is_persian,
+                    pre_barrier_enabled=getattr(optical_params, "pre_barrier_enabled", True),
+                    slab_enabled=getattr(optical_params, "slab_enabled", False),
+                    slab_thickness_um=getattr(optical_params, "slab_thickness_um", 10.0),
+                    slab_refractive_index=getattr(optical_params, "slab_refractive_index", 1.50),
+                    slab_slit=getattr(optical_params, "slab_slit", "slit1")
                 ))
                 _check("calculations image", cls.export_calculations_image(
                     filepath=os.path.join(fig_dir, "5_calculations_and_formulas.png"),
@@ -697,7 +741,14 @@ class ExportService:
                     "visibility": stats_dict.get("visibility", 1.0),
                     "which_way_active": which_way_active,
                     "is_quantum": is_quantum,
-                    "total_hits": total_hits
+                    "total_hits": total_hits,
+                    "pre_barrier_enabled": getattr(optical_params, "pre_barrier_enabled", True),
+                    "slab_enabled": getattr(optical_params, "slab_enabled", False),
+                    "slab_thickness_um": getattr(optical_params, "slab_thickness_um", 0.0),
+                    "slab_refractive_index": getattr(optical_params, "slab_refractive_index", 1.50),
+                    "slab_slit": getattr(optical_params, "slab_slit", "slit1"),
+                    "fringe_shift_mm": features.get("fringe_shift_y_mm", 0.0),
+                    "fringe_shift_count_N": features.get("fringe_shift_count_N", 0.0),
                 }
                 with open(os.path.join(tmp_dir, "experiment_metadata.json"), "w", encoding="utf-8") as f_json:
                     json.dump(meta, f_json, indent=2, ensure_ascii=False)

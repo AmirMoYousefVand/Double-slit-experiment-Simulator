@@ -38,6 +38,11 @@ class SetupSchematicView(ctk.CTkFrame):
         self.which_way_active = False
         self.particle_category = ParticleCategory.PHOTON
         self.is_quantum = False
+        self.pre_barrier_enabled = True
+        self.slab_enabled = False
+        self.slab_thickness_um = 10.0
+        self.slab_refractive_index = 1.50
+        self.slab_slit = "slit1"
 
         # Animation state for Huygens wavelets
         self.wave_phase = 0.0
@@ -112,7 +117,12 @@ class SetupSchematicView(ctk.CTkFrame):
         screen_distance_m: float,
         which_way_active: bool,
         particle_category: ParticleCategory = ParticleCategory.PHOTON,
-        is_quantum: bool = False
+        is_quantum: bool = False,
+        pre_barrier_enabled: bool = True,
+        slab_enabled: bool = False,
+        slab_thickness_um: float = 10.0,
+        slab_refractive_index: float = 1.50,
+        slab_slit: str = "slit1"
     ):
         """Updates parameters and redraws."""
         self.wavelength_nm = wavelength_nm
@@ -122,6 +132,11 @@ class SetupSchematicView(ctk.CTkFrame):
         self.which_way_active = which_way_active
         self.particle_category = particle_category
         self.is_quantum = is_quantum
+        self.pre_barrier_enabled = pre_barrier_enabled
+        self.slab_enabled = slab_enabled
+        self.slab_thickness_um = slab_thickness_um
+        self.slab_refractive_index = slab_refractive_index
+        self.slab_slit = slab_slit
         self._redraw_schematic()
 
     def refresh_language(self):
@@ -169,7 +184,7 @@ class SetupSchematicView(ctk.CTkFrame):
         slit_w_pixels = max(self.slit_width_mm * 120.0, 4.0)
 
         # ----------------------------------------------------------------------
-        # 1. Coherent Source (Laser / Particle Gun)
+        # 1. Coherent Source (Laser / Particle Gun) & Spatial Coherence Pre-Barrier
         # ----------------------------------------------------------------------
         self.canvas.create_rectangle(
             x_source - 35, mid_y - 25, x_source, mid_y + 25,
@@ -183,15 +198,65 @@ class SetupSchematicView(ctk.CTkFrame):
             font=(FontManager.PERSIAN_FAMILY if is_fa else "Arial", 8, "bold")
         )
 
-        # Plane waves from source to barrier in spectral color
-        num_plane_waves = 5
-        plane_step = (x_barrier - x_source) / num_plane_waves
-        for i in range(num_plane_waves):
-            px = x_source + ((i * plane_step + self.wave_phase) % (x_barrier - x_source))
-            self.canvas.create_line(
-                px, mid_y - 55, px, mid_y + 55,
-                fill=wave_hex, width=1.5, dash=(3, 3)
+        if self.pre_barrier_enabled:
+            x_pre = x_source + (x_barrier - x_source) * 0.44
+            s0_w_pixels = max(slit_w_pixels * 1.1, 5.0)
+
+            # Plane waves from source to pre-barrier S0
+            num_plane_waves = 3
+            plane_step = max((x_pre - x_source) / num_plane_waves, 10.0)
+            for i in range(num_plane_waves):
+                px = x_source + ((i * plane_step + self.wave_phase * 0.7) % (x_pre - x_source))
+                self.canvas.create_line(
+                    px, mid_y - 45, px, mid_y + 45,
+                    fill=wave_hex, width=1.5, dash=(3, 3)
+                )
+
+            # Pre-barrier S0 plate (two segments leaving central aperture)
+            pre_thick = 7
+            pre_color = "#475569"
+            self.canvas.create_rectangle(
+                x_pre - pre_thick / 2, 35,
+                x_pre + pre_thick / 2, mid_y - s0_w_pixels / 2,
+                fill=pre_color, outline="#64748B"
             )
+            self.canvas.create_rectangle(
+                x_pre - pre_thick / 2, mid_y + s0_w_pixels / 2,
+                x_pre + pre_thick / 2, self.height - 35,
+                fill=pre_color, outline="#64748B"
+            )
+            self.canvas.create_text(
+                x_pre - 14, mid_y,
+                text="S₀", fill="#38BDF8", font=("Consolas", 9, "bold")
+            )
+
+            # Coherent expanding wavelets from S0 illuminating double slits S1 & S2
+            num_pre_rings = 4
+            pre_span = x_barrier - x_pre
+            ring_spacing_pre = pre_span / num_pre_rings
+            for r_idx in range(1, num_pre_rings + 1):
+                radius = (r_idx * ring_spacing_pre + self.wave_phase) % pre_span
+                alpha_frac = max(0.2, 1.0 - (radius / pre_span))
+                r_c = int(base_rgb[0] * alpha_frac)
+                g_c = int(base_rgb[1] * alpha_frac)
+                b_c = int(base_rgb[2] * alpha_frac)
+                arc_col = f"#{r_c:02x}{g_c:02x}{b_c:02x}"
+                self.canvas.create_arc(
+                    x_pre - radius, mid_y - radius,
+                    x_pre + radius, mid_y + radius,
+                    start=-65, extent=130,
+                    style=tk.ARC, outline=arc_col, width=1.3
+                )
+        else:
+            # Direct plane waves from source all the way to double-slit barrier
+            num_plane_waves = 5
+            plane_step = (x_barrier - x_source) / num_plane_waves
+            for i in range(num_plane_waves):
+                px = x_source + ((i * plane_step + self.wave_phase) % (x_barrier - x_source))
+                self.canvas.create_line(
+                    px, mid_y - 55, px, mid_y + 55,
+                    fill=wave_hex, width=1.5, dash=(3, 3)
+                )
 
         # ----------------------------------------------------------------------
         # 2. Slit Barrier (Opaque with two apertures)
@@ -232,6 +297,36 @@ class SetupSchematicView(ctk.CTkFrame):
             text=f"d={self.slit_distance_mm:.2f}mm",
             fill="#FFB300", font=("Consolas", 8)
         )
+
+        # ----------------------------------------------------------------------
+        # 2B. External Transparent Slab (Glass Plate in Beam Path)
+        # ----------------------------------------------------------------------
+        if self.slab_enabled:
+            y_target_slit = y_slit1 if self.slab_slit == "slit1" else y_slit2
+            w_slab = min(max(self.slab_thickness_um * 1.4, 14.0), 38.0)
+            h_slab = max(slit_w_pixels * 2.8, 22.0)
+            x_slab1 = x_barrier + 6
+            x_slab2 = x_slab1 + w_slab
+            y_slab1 = y_target_slit - h_slab / 2.0
+            y_slab2 = y_target_slit + h_slab / 2.0
+
+            # Translucent glass body with cyan glow
+            self.canvas.create_rectangle(
+                x_slab1, y_slab1, x_slab2, y_slab2,
+                fill="#0369A1", outline="#38BDF8", width=1.5
+            )
+            # Glass highlight reflection
+            self.canvas.create_line(
+                x_slab1 + 3, y_slab1 + 2, x_slab1 + 3, y_slab2 - 2,
+                fill="#BAE6FD", width=1
+            )
+            # Optical label badge
+            badge_text = f"t={self.slab_thickness_um:.1f}µm\nn={self.slab_refractive_index:.2f}"
+            self.canvas.create_text(
+                x_slab2 + 5, y_target_slit,
+                text=badge_text, anchor="w",
+                fill="#38BDF8", font=("Consolas", 7, "bold")
+            )
 
         # ----------------------------------------------------------------------
         # 3. Expanding Wavelets in Spectral Color (or Collapsed if Which-Way is ON)
@@ -366,10 +461,40 @@ class SetupSchematicView(ctk.CTkFrame):
         beta_p = (math.pi * a_m * sin_p) / wl_m
         sinc_p = (math.sin(beta_p) / beta_p)**2 if abs(beta_p) > 1e-6 else 1.0
         alpha_p = (math.pi * d_m * sin_p) / wl_m
-        if not self.which_way_active:
-            i_p = sinc_p * (math.cos(alpha_p)**2)
+
+        # Path Lengths & Optical Path Difference (with slab)
+        r1 = math.sqrt(L_m ** 2 + (physical_y_m - d_m / 2.0) ** 2)
+        r2 = math.sqrt(L_m ** 2 + (physical_y_m + d_m / 2.0) ** 2)
+
+        if self.slab_enabled:
+            delta_opd_m = (self.slab_refractive_index - 1.0) * (self.slab_thickness_um * 1e-6)
+            if self.slab_slit == "slit1":
+                opl1 = r1 + delta_opd_m
+                opl2 = r2
+            else:
+                opl1 = r1
+                opl2 = r2 + delta_opd_m
+            delta_r_m = abs(opl2 - opl1)
+            delta_phase_p = (2.0 * math.pi / wl_m) * delta_opd_m
+            sign_p = 1.0 if self.slab_slit == "slit1" else -1.0
+            if not self.which_way_active:
+                i_p = sinc_p * (math.cos(alpha_p - sign_p * delta_phase_p / 2.0)**2)
+            else:
+                i_p = 0.5 * sinc_p
+            shift_mm = sign_p * (delta_opd_m * L_m / max(d_m, 1e-6)) * 1000.0
+            phase_rad = (2.0 * math.pi * delta_r_m) / wl_m
+            phase_deg = math.degrees(phase_rad) % 360.0
         else:
-            i_p = 0.5 * sinc_p
+            delta_r_m = abs(r2 - r1)
+            shift_mm = 0.0
+            if not self.which_way_active:
+                i_p = sinc_p * (math.cos(alpha_p)**2)
+            else:
+                i_p = 0.5 * sinc_p
+            phase_rad = (2.0 * math.pi * delta_r_m) / wl_m
+            phase_deg = math.degrees(phase_rad) % 360.0
+
+        delta_r_nm = delta_r_m * 1e9
         i_p = min(max(i_p, 0.0), 1.0)
 
         # Ray r1 (from Slit 1 to P)
@@ -382,15 +507,6 @@ class SetupSchematicView(ctk.CTkFrame):
             x_barrier, y_slit2, p_x, p_y,
             fill="#FFD600", width=2, dash=(6, 2)
         )
-
-        # Path Lengths
-        r1 = math.sqrt(L_m ** 2 + (physical_y_m - d_m / 2.0) ** 2)
-        r2 = math.sqrt(L_m ** 2 + (physical_y_m + d_m / 2.0) ** 2)
-        delta_r_m = abs(r2 - r1)
-        delta_r_nm = delta_r_m * 1e9
-
-        phase_rad = (2.0 * math.pi * delta_r_m) / wl_m
-        phase_deg = math.degrees(phase_rad) % 360.0
 
         # --- Dynamic Pulsating Luminous Impact Spot ---
         pulse_osc = 0.75 + 0.25 * math.sin(self.wave_phase * 0.4)
@@ -478,9 +594,15 @@ class SetupSchematicView(ctk.CTkFrame):
         elif is_destructive:
             condition_text = " [Min: Dark]" if not is_fa else " [کمینه تاریک]"
 
-        self.path_diff_label.configure(
-            text=f"Δr = {delta_r_nm:.1f} nm | Phase: {phase_deg:.1f}°{condition_text}"
-        )
+        if self.slab_enabled:
+            sign_str = "+" if shift_mm >= 0 else ""
+            self.path_diff_label.configure(
+                text=f"ΔOPD = {delta_r_nm:.1f} nm | Phase: {phase_deg:.1f}°{condition_text} | Shift: {sign_str}{shift_mm:.2f} mm"
+            )
+        else:
+            self.path_diff_label.configure(
+                text=f"Δr = {delta_r_nm:.1f} nm | Phase: {phase_deg:.1f}°{condition_text}"
+            )
 
         # ----------------------------------------------------------------------
         # 7. Which-Way Detector Graphic (Observer Effect)
