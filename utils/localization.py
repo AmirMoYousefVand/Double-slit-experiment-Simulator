@@ -487,8 +487,8 @@ class LocalizationService:
             "fa": f"{RLM}پرده{RLM}"
         },
         "sch_observer_active": {
-            "en": "⚡ OBSERVER ACTIVE: PATH KNOWN - NO INTERFERENCE",
-            "fa": f"{RLM}⚡ ناظر فعال: مسیر ذره معین شد - تداخل محو شد{RLM}"
+            "en": "[OBSERVER ACTIVE] PATH KNOWN - NO INTERFERENCE",
+            "fa": f"{RLM}[ناظر فعال] مسیر ذره معین شد - تداخل محو شد{RLM}"
         },
 
         # History / Classroom Tutorial Tab
@@ -533,20 +533,20 @@ class LocalizationService:
             "fa": f"{RLM}عکس در حالت آفلاین در دسترس نیست{RLM}"
         },
         "hist_live_badge": {
-            "en": "● LIVE — follows current lab settings",
-            "fa": f"{RLM}● زنده — با تنظیمات فعلی آزمایشگاه{RLM}"
+            "en": "LIVE — follows current lab settings",
+            "fa": f"{RLM}زنده — با تنظیمات فعلی آزمایشگاه{RLM}"
         },
         "hist_score": {
             "en": "Score",
             "fa": f"{RLM}امتیاز{RLM}"
         },
         "hist_correct": {
-            "en": "✓ Correct! Well done.",
-            "fa": f"{RLM}✓ آفرین! پاسخ درست است.{RLM}"
+            "en": "[Correct] Well done.",
+            "fa": f"{RLM}[صحیح] پاسخ درست است.{RLM}"
         },
         "hist_wrong": {
-            "en": "✗ Not quite. Read the explanation below.",
-            "fa": f"{RLM}✗ درست نیست. توضیح زیر را بخوان.{RLM}"
+            "en": "[Incorrect] Read the explanation below.",
+            "fa": f"{RLM}[نادرست] توضیح زیر را بخوان.{RLM}"
         },
         "hist_retry": {
             "en": "Restart Quiz",
@@ -615,8 +615,8 @@ class LocalizationService:
 
         # Canvas & Diagram Localization
         "fig_expand": {
-            "en": "Expand ⛶",
-            "fa": f"{RLM}بزرگ‌نمایی ⛶{RLM}"
+            "en": "Expand",
+            "fa": f"{RLM}بزرگ‌نمایی{RLM}"
         },
         "fig_close": {
             "en": "Close (Esc)",

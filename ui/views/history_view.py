@@ -1083,11 +1083,11 @@ class HistoryView(ctk.CTkScrollableFrame):
                 self._toggle_buildup_observer()
                 self._update_buildup_btn_text()
                 status_txt = LocalizationService.get("hist_obs_active") if self._buildup_observer_active else LocalizationService.get("hist_obs_off")
-                obs_btn.configure(text=f"👁 {status_txt}")
+                obs_btn.configure(text=f"[ناظر] {status_txt}" if is_fa else f"[Observer] {status_txt}")
 
             status_txt = LocalizationService.get("hist_obs_active") if self._buildup_observer_active else LocalizationService.get("hist_obs_off")
             obs_btn = ctk.CTkButton(
-                header, text=f"👁 {status_txt}",
+                header, text=f"[ناظر] {status_txt}" if is_fa else f"[Observer] {status_txt}",
                 width=160, height=28,
                 fg_color="#1E3A8A", hover_color="#2563EB",
                 font=FontManager.get_persian_font(9, "bold") if is_fa else FontManager.get_number_font(9, "bold"),

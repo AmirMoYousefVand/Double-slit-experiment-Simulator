@@ -263,7 +263,7 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
         points = mod["points_fa"] if is_fa else mod["points_en"]
         tip = mod["tip_fa"] if is_fa else mod["tip_en"]
 
-        self.category_badge.configure(text=f"{mod.get('icon', '📖')} {cat}")
+        self.category_badge.configure(text=f"{mod.get('icon', '[#]')} {cat}")
         self.counter_label.configure(text=f"{index + 1} / {total}")
         self.progress.set((index + 1) / total)
 
@@ -305,7 +305,7 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
             self._point_labels.append(lbl)
 
         # Tip Card
-        self.tip_label.configure(text=f"💡 {tip}")
+        self.tip_label.configure(text=f"[نکته] {tip}" if LocalizationService.is_persian() else f"[Tip] {tip}")
 
         # Reset scroll position to top of new module
         try:
@@ -441,21 +441,21 @@ class SoftwareGuideView(ctk.CTkScrollableFrame):
             f_size = 12 if w > 750 else (10 if w > 580 else 8)
             LocalizationService.render_canvas_persian(cv, w // 2, cy - 35, "Δr = d · (y / L) | Δy = (λ · L) / d | I = 4I₀ cos²(Δφ / 2)" if is_fa else "Δr = d·(y/L) | Δy = (λ·L)/d | I = 4I0 cos²(Δφ/2)", font=("Consolas", f_size, "bold"), fill="#38BDF8")
             LocalizationService.render_canvas_persian(cv, w // 2, cy + 5, "کاوشگر نقطه‌ای: محاسبه لحظه‌ای زاویه، فاز و شدت در هر مختصات y" if is_fa else "Point Inspector: Live Angle, Phase & Intensity Evaluation", font=("Segoe UI", 9, "bold"), fill="#6EE7B7")
-            LocalizationService.render_canvas_persian(cv, w // 2, cy + 35, "📄 خروجی گزارش Word با فرمول‌های ریاضی رسمی OMML" if is_fa else "📄 Export Word Lab Report with OMML Math Equations", font=("Segoe UI", 9, "bold"), fill="#F59E0B")
+            LocalizationService.render_canvas_persian(cv, w // 2, cy + 35, "خروجی گزارش Word با فرمول‌های ریاضی رسمی OMML" if is_fa else "Export Word Lab Report with OMML Math Equations", font=("Segoe UI", 9, "bold"), fill="#F59E0B")
 
         elif mod_id == "g7_quantum":
             # Quantum Wave-Particle Duality
             cv.create_oval(w // 2 - 90, cy - 45, w // 2 - 30, cy + 15, fill="#1E3A8A", outline="#38BDF8", width=2)
             cv.create_text(w // 2 - 60, cy - 15, text="ψ(y)", fill="#38BDF8", font=("Consolas", 13, "bold"))
-            cv.create_text(w // 2, cy - 15, text="➔", fill="#94A3B8", font=("Segoe UI", 16))
+            cv.create_text(w // 2, cy - 15, text="->", fill="#94A3B8", font=("Segoe UI", 16))
             cv.create_oval(w // 2 + 30, cy - 45, w // 2 + 90, cy + 15, fill="#065F46", outline="#10B981", width=2)
             cv.create_text(w // 2 + 60, cy - 15, text="|ψ|²", fill="#10B981", font=("Consolas", 13, "bold"))
             LocalizationService.render_canvas_persian(cv, w // 2, cy + 45, "دوگانگی موج-ذره: فوتون، الکترون و مولکول باکی‌بال C₆₀" if is_fa else "Wave-Particle Duality: Photons, Electrons, and C60 Buckyballs", font=("Segoe UI", 10, "bold"), fill="#A7F3D0")
 
         elif mod_id == "g8_which_way_exports":
             # Observer & 4 Export Formats
-            formats = ["📊 CSV (22 ستون)", "🖼 عکس 300 DPI", "📐 مدل 3D OBJ", "📦 بسته ZIP"] if is_fa else \
-                      ["📊 CSV (22 Cols)", "🖼 300 DPI Plot", "📐 3D OBJ Model", "📦 Lab ZIP Bundle"]
+            formats = ["CSV (22 ستون)", "عکس 300 DPI", "مدل 3D OBJ", "بسته ZIP"] if is_fa else \
+                      ["CSV (22 Cols)", "300 DPI Plot", "3D OBJ Model", "Lab ZIP Bundle"]
             box_w = (w - 100) // 4
             for i, fmt in enumerate(formats):
                 bx = 50 + i * box_w

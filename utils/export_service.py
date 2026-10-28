@@ -574,7 +574,7 @@ class ExportService:
             if which_way_active:
                 for ys in [y_s1, y_s2]:
                     ax.add_patch(plt.Rectangle((1.5, ys - 2.5), 4.5, 5.0, facecolor="#311B92", edgecolor="#FF1744", lw=1.5, zorder=8))
-                alert_msg = "⚡ OBSERVER EFFECT ACTIVE: WAVEFUNCTION COLLAPSED" if not is_persian else LocalizationService.reshape_text("⚡ اثر ناظر فعال: فروریزش تابع موج کوانتومی")
+                alert_msg = "[OBSERVER EFFECT ACTIVE: WAVEFUNCTION COLLAPSED]" if not is_persian else LocalizationService.reshape_text("[اثر ناظر فعال: فروریزش تابع موج کوانتومی]")
                 ax.text(38, 36, alert_msg, color="#F87171", fontsize=8.5, weight="bold", ha="center", fontproperties=fprop_lbl,
                         bbox=dict(boxstyle="round,pad=0.3", fc="#450A0A", ec="#DC2626", lw=1.2))
 

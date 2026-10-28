@@ -580,7 +580,7 @@ class Setup3DView(ctk.CTkFrame):
                 self.ax.plot([0, 0.04 * L], [y_slit, y_slit], [0, 0], color=det_col, lw=2.5)
                 self.ax.text(0.04 * L, y_slit, 1.2, det_name, color=det_col, fontsize=8, weight="bold")
 
-            alert_text = "⚡ OBSERVER ACTIVE: COLLAPSE" if not is_fa else LocalizationService.reshape_text("⚡ اثر ناظر فعال: فروریزش تابع موج")
+            alert_text = "[OBSERVER ACTIVE: COLLAPSE]" if not is_fa else LocalizationService.reshape_text("[اثر ناظر فعال: فروریزش تابع موج]")
             self.ax.text(L / 2.0, 0, z_span_mm + 3.0, alert_text,
                          color="#F87171", fontsize=8, weight="bold", ha="center",
                          fontproperties=FontManager.get_mpl_persian_prop(8) if is_fa else FontManager.get_mpl_number_prop(8),
