@@ -132,6 +132,19 @@ initialization.
 - Zehnder/Zourappan & Arndt et al. (1999) — wave interference of C₆₀ fullerenes
 - CODATA 2018 fundamental constants
 
+## Release History
+
+### v1.3.0 (Fall 2026 / 1405)
+- **Zero Emojis**: Removed 100% of emojis across the interactive guide, history module, 3D setup, and export services; replaced with vector icons and clean badges.
+- **Unicode Directional Clean-Up**: Removed stray RLM control characters for pristine canvas typography.
+- **Observer Effect Visual Polish**: Cleaned Which-Way detector indicators and collapse banners.
+- **Standalone Windows Executable**: Bundled and published standalone `.exe` release.
+
+### v1.2.0
+- Spatial Coherence Pre-Barrier ($S_0$) and external optical slab phase shift implementation.
+
+---
+
 ## Credits
 
 Historical portrait and laboratory images credits are listed in
