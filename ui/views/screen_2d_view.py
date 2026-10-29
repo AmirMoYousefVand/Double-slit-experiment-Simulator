@@ -118,6 +118,14 @@ class Screen2DView(ctk.CTkFrame):
                 self.canvas_width = event.width
                 self.canvas_height = event.height
                 self.quantum_buffer = np.zeros((self.canvas_height, self.canvas_width, 3), dtype=np.float32)
+                if self._last_intensity_1d is not None and not self.is_quantum_mode:
+                    self.update_classical_screen(
+                        intensity_1d=self._last_intensity_1d,
+                        base_rgb=self._last_base_rgb,
+                        span_y_m=self.current_span_y_m
+                    )
+                elif not self.is_quantum_mode:
+                    self._render_blank()
 
     def _render_blank(self):
         """Clears canvas with dark phosphor glow background."""

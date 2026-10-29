@@ -120,9 +120,9 @@ PRESETS: Dict[str, Dict[str, Any]] = {
 # ==============================================================================
 APP_TITLE = "Thomas Young Double-Slit Experiment Simulator"
 APP_SUBTITLE = "Classical Wave Optics & Quantum Mechanics Dashboard"
-WINDOW_MIN_WIDTH = 1200
-WINDOW_MIN_HEIGHT = 800
-WINDOW_DEFAULT_GEOMETRY = "1400x900"
+WINDOW_MIN_WIDTH = 980
+WINDOW_MIN_HEIGHT = 560
+WINDOW_DEFAULT_GEOMETRY = "1200x650"
 
 APPEARANCE_MODE = "dark"           # "dark" or "light"
 COLOR_THEME = "blue"               # "blue", "dark-blue", "green"

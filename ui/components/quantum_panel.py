@@ -14,9 +14,10 @@ from utils.localization import LocalizationService, RLM
 from utils.font_manager import FontManager
 from utils.numeric_input import parse_number, clamp_range
 
-class QuantumPanel(ctk.CTkFrame):
+class QuantumPanel(ctk.CTkScrollableFrame):
     """
     Control panel for quantum particle emission and observer effect interaction.
+    Scrollable to guarantee 100% control visibility on low-height (720p/768p) displays.
     """
 
     PARTICLE_KEYS = [

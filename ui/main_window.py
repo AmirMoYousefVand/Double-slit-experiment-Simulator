@@ -91,7 +91,16 @@ class MainWindow(ctk.CTk):
         ctk.set_default_color_theme(COLOR_THEME)
 
         self.title(LocalizationService.get("app_title"))
-        self.geometry(WINDOW_DEFAULT_GEOMETRY)
+
+        # Screen-aware geometry calculation for low-res & high-res displays
+        self.update_idletasks()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        target_w = max(WINDOW_MIN_WIDTH, min(1200, sw - 30))
+        target_h = max(WINDOW_MIN_HEIGHT, min(650, sh - 70))
+        x = max(0, (sw - target_w) // 2)
+        y = max(0, (sh - 70 - target_h) // 2)
+        self.geometry(f"{target_w}x{target_h}+{x}+{y}")
         self.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
         self._set_window_icon()
 
@@ -860,9 +869,8 @@ class MainWindow(ctk.CTk):
     def _update_tabview_titles(self):
         """Updates tabview segmented button labels for the active language."""
         is_fa = LocalizationService.is_persian()
-        self.tabview._segmented_button.configure(
-            font=FontManager.get_persian_font(11, "bold") if is_fa else FontManager.get_number_font(11, "bold")
-        )
+        tab_font = FontManager.get_persian_font(10, "bold") if is_fa else FontManager.get_number_font(10, "bold")
+        self.tabview._segmented_button.configure(font=tab_font)
         tab_map = [
             ("tab_2d", "tab_2d_screen"),
             ("tab_1d", "tab_1d_profile"),
@@ -876,10 +884,7 @@ class MainWindow(ctk.CTk):
             btn_text = LocalizationService.get(loc_key)
             btn = self.tabview._segmented_button._buttons_dict.get(tab_id)
             if btn is not None:
-                btn.configure(
-                    text=btn_text,
-                    font=FontManager.get_persian_font(11, "bold") if is_fa else FontManager.get_number_font(11, "bold")
-                )
+                btn.configure(text=btn_text, font=tab_font)
 
     def _toggle_theme(self):
         curr = ctk.get_appearance_mode()
